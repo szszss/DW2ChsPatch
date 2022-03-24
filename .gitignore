@@ -3,6 +3,9 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+DW2TextExtracter/
+DW2TextTest/
+
 # User-specific files
 *.rsuser
 *.suo
