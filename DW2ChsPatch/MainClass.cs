@@ -26,6 +26,7 @@ namespace DW2ChsPatch
 		    var enableTextBoxPaste = false;
 		    var fixChineseTextWrap = false;
 		    var fontTexSize = 1024;
+		    var fleetDesignRowSize = 0.9f;
 		    var chineseRandomName = false;
 		    var chineseRandomShipName = false;
 		    var chineseOrdinalNumber = false;
@@ -37,6 +38,9 @@ namespace DW2ChsPatch
 		    var optimizeOrb = false;
 		    var optimizeShipTex = false;
 		    var optimizeOtherTex = false;
+
+		    var generateText = false;
+		    var generateTextFolder = "chs/NewTranslations";
 
 			try
 		    {
@@ -59,6 +63,10 @@ namespace DW2ChsPatch
 					var fontTexSizeNode = doc.SelectSingleNode("//FontCacheTextureSize");
 					if (fontTexSizeNode != null && int.TryParse(fontTexSizeNode.InnerText, out var fSize))
 						fontTexSize = Math.Max(Math.Min(fSize, 8192), 1024);
+
+					var fleetDesignRowSizeNode = doc.SelectSingleNode("//FleetDesignRowSize");
+					if (fleetDesignRowSizeNode != null && float.TryParse(fleetDesignRowSizeNode.InnerText, out var rSize))
+						fleetDesignRowSize = rSize;
 
 					var chineseRandomNameNode = doc.SelectSingleNode("//EnableChineseRandomName");
 					chineseRandomName = chineseRandomNameNode?.InnerText.Equals(
@@ -99,6 +107,14 @@ namespace DW2ChsPatch
 					var optimizeOtherTexNode = doc.SelectSingleNode("//OptimizeOtherTexture");
 					optimizeOtherTex = optimizeOtherTexNode?.InnerText.Equals(
 						"true", StringComparison.OrdinalIgnoreCase) == true;
+
+					var generateTextNode = doc.SelectSingleNode("//GenerateTranslationText");
+					generateText = generateTextNode?.InnerText.Equals(
+						"true", StringComparison.OrdinalIgnoreCase) == true;
+
+					var generateTextFolderNode = doc.SelectSingleNode("//GenerateTranslationFolder");
+					if (generateTextFolderNode != null)
+						generateTextFolder = characterNameSeparatorNode.InnerText;
 				}
 			}
 		    catch (Exception e)
@@ -114,6 +130,27 @@ namespace DW2ChsPatch
 
 				MessageBox.Show(sb.ToString(), "配置文件错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
 		    }
+
+			if (generateText)
+			{
+				try
+				{
+					JsonText.StoreOrderOfItems = true;
+					TranslationTextGenerator.Enable = true;
+					TranslationTextGenerator.OutputDir = Path.Combine(textPath, generateTextFolder);
+					Directory.CreateDirectory(TranslationTextGenerator.OutputDir);
+				}
+				catch (Exception e)
+				{
+					JsonText.StoreOrderOfItems = false;
+					TranslationTextGenerator.Enable = false;
+					var sb = new StringBuilder("无法创建文本文件输出目录，");
+					sb.AppendLine($"错误信息为{e.Message}");
+					sb.Append("已禁用新文本生成模式。");
+
+					MessageBox.Show(sb.ToString(), "配置文件错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+				}
+			}
 
 			try
 			{
@@ -143,6 +180,7 @@ namespace DW2ChsPatch
 				if (chineseRandomShipName)
 					RandomShipNamePatch.Patch(harmony, postfixForRandomShipName);
 				CharacterNamePatch.Patch(harmony, characterNameSeparator);
+				FleetDesignFixPatch.Patch(harmony, fleetDesignRowSize);
 
 				if (optimizeOrb)
 					ReduceMeshPatch.Patch(harmony);

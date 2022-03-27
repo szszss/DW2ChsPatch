@@ -9,7 +9,7 @@ namespace DW2ChsPatch.TextProcess
 {
 	public static class GameText
 	{
-		private const string FILENAME = "GameText.txt";
+		private const string FILENAME = "GameText.json";
 
 		private static string _dir;
 
@@ -34,12 +34,13 @@ namespace DW2ChsPatch.TextProcess
 				AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
 				"_Text").GetValue(null) as Dictionary<string, string>;
 
-			if (texts != null)
+			if (texts != null && File.Exists(file))
 			{
-				foreach (var pair in ReadTextIntoDictionary(file))
+				var json = new JsonText(file);
+				foreach (var item in json)
 				{
-					//if (texts.ContainsKey(pair.Key))
-						texts[pair.Key] = pair.Value;
+					if (!string.IsNullOrWhiteSpace(item.Key) && !string.IsNullOrEmpty(item.Translation))
+						texts[item.Key] = item.Translation;
 				}
 
 				if (_chineseCCS)
@@ -65,10 +66,11 @@ namespace DW2ChsPatch.TextProcess
 				var file = Path.Combine(_dir, __0);
 				if (File.Exists(file))
 				{
-					foreach (var pair in ReadTextIntoDictionary(file))
+					var json = new JsonText(file);
+					foreach (var item in json)
 					{
-						//if (__result.ContainsKey(pair.Key))
-							__result[pair.Key] = pair.Value;
+						if (!string.IsNullOrWhiteSpace(item.Key) && !string.IsNullOrEmpty(item.Translation))
+							__result[item.Key] = item.Translation;
 					}
 				}
 			}
@@ -121,6 +123,9 @@ namespace DW2ChsPatch.TextProcess
 		public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
 		{
 			var gameTextOrigin = GameText.ReadTextIntoLines(pathOrigin);
+			var gameTextTranslatedJson = new JsonText();
+			if (File.Exists(pathTranslate))
+				gameTextTranslatedJson.ImportFromFile(pathTranslate);
 			var gameTextTranslated = File.Exists(pathTranslate) 
 				? GameText.ReadTextIntoLines(pathTranslate) :
 				new List<Tuple<string, string>>();
@@ -210,121 +215,5 @@ namespace DW2ChsPatch.TextProcess
 			texts["ComponentCategory WeaponIon Short"] = "瘫痪";
 			texts["ComponentCategory WeaponStandoff Short"] = "远程";
 		}
-
-		/*
-		 private const string FILENAME = "GameText.csv";
-		
-		private static readonly CsvOptions _csvOptions = new CsvOptions()
-		{
-			Separator = ';',
-			HeaderMode = HeaderMode.HeaderAbsent
-		};
-
-		private static string _dir;
-
-		private static void ReadTextIntoDictionary(string filepath, 
-			Dictionary<string, string> textDic,
-			Dictionary<string, int> hashDic = null)
-		{
-			IEnumerable<ICsvLine> lines = null;
-
-			using (var stream = File.OpenRead(filepath))
-			{
-				lines = CsvReader.ReadFromStream(stream, _csvOptions);
-			}
-
-			foreach (var line in lines)
-			{
-				if (line.ColumnCount >= 3)
-				{
-					var key = line.Values[0].Trim();
-					if (!string.IsNullOrEmpty(key))
-					{
-						var oldValueHash = Convert.ToInt32(line.Values[1].Trim(), 16);
-						var newValue = line.Values[2].Replace("\\n", Environment.NewLine).Trim();
-						textDic[key] = newValue;
-						if (hashDic != null)
-							hashDic[key] = oldValueHash;
-					}
-				}
-			}
-		}
-
-		public static void Update(string gameTextDir, string exportDir)
-		{
-			var outputFile = Path.Combine(exportDir, FILENAME);
-			var textDic = new Dictionary<string, string>();
-			var hashDic = new Dictionary<string, int>();
-			if (File.Exists(outputFile))
-			{
-				ReadTextIntoDictionary(outputFile, textDic, hashDic);
-			}
-
-			if (File.Exists(gameTextDir))
-			{
-				var lines = File.ReadAllLines(gameTextDir, Encoding.UTF8);
-				List<string[]> output = new List<string[]>();
-
-				foreach (var line in lines)
-				{
-					var trimmedLine = line.Trim();
-					string key = null;
-					string text = null;
-					int hash = 0;
-					if (!string.IsNullOrEmpty(trimmedLine) && !trimmedLine.StartsWith("'"))
-					{
-						int num2 = trimmedLine.IndexOf(";", StringComparison.Ordinal);
-						if (num2 >= 0)
-						{
-							key = trimmedLine.Substring(0, num2).Trim();
-							text = trimmedLine.Substring(num2 + 1, trimmedLine.Length - (num2 + 1)).Trim();
-							hash = text.Replace("\\n", "").GetHashCode();
-
-							if (hashDic.TryGetValue(key, out int oldHash) && oldHash == hash)
-							{
-								text = textDic[key];
-							}
-						}
-					}
-
-					if (key != null)
-					{
-						output.Add(new [] {key, Convert.ToString(hash, 16), text});
-					}
-					else
-					{
-						output.Add(new [] {"", "", ""});
-					}
-				}
-
-				using (var stream = new StreamWriter(File.OpenWrite(outputFile), Encoding.UTF8))
-				{
-					CsvWriter.Write(stream, new string[3], output, ';', true);
-				}
-			}
-		}
-
-		public static void Patch(Harmony harmony, string textDir)
-		{
-			_dir = textDir;
-			harmony.Patch(AccessTools.Method("DistantWorlds.Types.TextResolver:LoadText", new [] {typeof(string)}),
-				null, new HarmonyMethod(typeof(GameTextPatch), nameof(GameTextPatch.Postfix)));
-		}
-
-		public static class GameTextPatch
-		{
-			public static void Postfix()
-			{
-				var file = Path.Combine(_dir, FILENAME);
-				var texts = AccessTools.Field(
-					AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
-					"_Text").GetValue(null) as Dictionary<string, string>;
-
-				if (File.Exists(file) && texts != null)
-				{
-					ReadTextIntoDictionary(file, texts);
-				}
-			}
-		}*/
 	}
 }

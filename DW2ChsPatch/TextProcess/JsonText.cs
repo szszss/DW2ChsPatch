@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,22 +8,97 @@ using Newtonsoft.Json;
 
 namespace DW2ChsPatch.TextProcess
 {
-	public class JsonText
+	public class JsonText : IEnumerable<JsonText.JsonTextItem>
 	{
-		private int _currentIndex = 0;
+		public static bool StoreOrderOfItems = false;
 
 		private Dictionary<string, JsonTextItem> _items = new Dictionary<string, JsonTextItem>();
 
+		private LinkedList<JsonTextItem> _itemOrder = new LinkedList<JsonTextItem>();
+
+		public JsonText()
+		{
+
+		}
+
+		public JsonText(string filepath)
+		{
+			ImportFromFile(filepath);
+		}
+
 		public void SetString(string key, string original, string translation = null, string context = null)
 		{
-			_items[key] = new JsonTextItem(_currentIndex++, key, original, translation, context);
+			SetStringAfter(null, key, original, translation, context);
+		}
+
+		public void SetStringAfter(string afterKey, string key, string original, string translation = null, string context = null)
+		{
+			var item = new JsonTextItem(key, original, translation, context);
+			_items[key] = item;
+			if (StoreOrderOfItems)
+			{
+				LinkedListNode<JsonTextItem> afterNode = null;
+				if (!string.IsNullOrEmpty(afterKey))
+					if (_items.TryGetValue(afterKey, out var after))
+						afterNode = after.Node;
+				item.Node = afterNode != null 
+					? _itemOrder.AddAfter(afterNode, item)
+					: _itemOrder.AddLast(item);
+			}
 		}
 
 		public string GetString(string key, string original)
 		{
-			if (_items.TryGetValue(key, out var item))
+			return GetString(key, original, 0);
+		}
+
+		public string GetString(string key, string original, int minStage)
+		{
+			if (_items.TryGetValue(key, out var item) && item.Stage >= minStage)
 				return string.IsNullOrEmpty(item.Translation) ? original : item.Translation;
 			return original;
+		}
+
+		public bool GetOriginalAndTranslatedString(string key, out string original, out string translated)
+		{
+			if (_items.TryGetValue(key, out var item))
+			{
+				original = item.Original;
+				translated = item.Translation;
+				return true;
+			}
+
+			original = null;
+			translated = null;
+			return false;
+		}
+
+		public void ImportFromFile(string filepath)
+		{
+			if (!File.Exists(filepath))
+				return;
+
+			var str = File.ReadAllText(filepath, Encoding.UTF8);
+			var array = JsonConvert.DeserializeObject<JsonTextItem[]>(str);
+
+			if (array?.Length > 0)
+			{
+				if (StoreOrderOfItems)
+				{
+					foreach (var item in array.Distinct(new JsonTextItemComparer()))
+					{
+						item.Node = _itemOrder.AddLast(item);
+						_items[item.Key] = item;
+					}
+				}
+				else
+				{
+					foreach (var item in array)
+					{
+						_items[item.Key] = item;
+					}
+				}
+			}
 		}
 
 		public void ExportToFile(string filepath)
@@ -30,14 +106,45 @@ namespace DW2ChsPatch.TextProcess
 			JsonSerializerSettings settings = new JsonSerializerSettings();
 			settings.NullValueHandling = NullValueHandling.Ignore;
 			settings.Formatting = Formatting.Indented;
-			var array = _items.Values.ToArray();
-			Array.Sort(array);
+
+			JsonTextItem[] array = StoreOrderOfItems ? _itemOrder.ToArray() : _items.Values.ToArray();
 			var str = JsonConvert.SerializeObject(array, settings).Replace("\\r\\n", "\\n");
 			Directory.CreateDirectory(Path.GetDirectoryName(filepath));
 			File.WriteAllText(filepath, str, Encoding.UTF8);
 		}
 
-		public class JsonTextItem : IComparable<JsonTextItem>
+		public Dictionary<string, string> CreateOriginalTranslationMappingMap()
+		{
+			var map = new Dictionary<string, string>();
+
+			foreach (var pair in _items)
+			{
+				var item = pair.Value;
+				if (!string.IsNullOrEmpty(item.Original) 
+				    && !string.IsNullOrEmpty(item.Translation))
+					map[item.Original] = item.Translation;
+			}
+
+			return map;
+		}
+
+		public Dictionary<string, string> CreateOriginalTranslationMappingMap(Predicate<JsonTextItem> predicate)
+		{
+			var map = new Dictionary<string, string>();
+
+			foreach (var pair in _items)
+			{
+				var item = pair.Value;
+				if (!string.IsNullOrEmpty(item.Original) 
+				    && !string.IsNullOrEmpty(item.Translation) 
+				    && predicate(item))
+					map[item.Original] = item.Translation;
+			}
+
+			return map;
+		}
+
+		public class JsonTextItem
 		{
 			[JsonProperty("key")]
 			public string Key { private set; get; }
@@ -51,24 +158,56 @@ namespace DW2ChsPatch.TextProcess
 			[JsonProperty("context")]
 			public string Context { set; get; }
 
-			[JsonIgnore]
-			protected int Index { private set; get; }
+			[JsonProperty("stage")]
+			public int Stage { set; get; }
 
-			internal JsonTextItem(int index, string key, string original, string translation = null, string context = null)
+			[JsonIgnore]
+			internal LinkedListNode<JsonTextItem> Node { set; get; }
+
+			internal JsonTextItem(string key, string original, string translation = null,
+				string context = null, int stage = 0)
 			{
-				this.Index = index;
 				this.Key = key;
 				this.Original = original;
 				this.Translation = translation;
 				this.Context = context;
+				this.Stage = stage;
 			}
 
-			public int CompareTo(JsonTextItem other)
+			public JsonTextItem()
 			{
-				if (ReferenceEquals(this, other)) return 0;
-				if (ReferenceEquals(null, other)) return 1;
-				return Index.CompareTo(other.Index);
 			}
+		}
+
+		private class JsonTextItemComparer : IEqualityComparer<JsonTextItem>
+		{
+			public bool Equals(JsonTextItem x, JsonTextItem y)
+			{
+				if (ReferenceEquals(x, y)) return true;
+				if (ReferenceEquals(x, null)) return false;
+				if (ReferenceEquals(y, null)) return false;
+				if (x.GetType() != y.GetType()) return false;
+				return x.Key == y.Key;
+			}
+
+			public int GetHashCode(JsonTextItem obj)
+			{
+				return (obj.Key != null ? obj.Key.GetHashCode() : 0);
+			}
+		}
+
+		public IEnumerator<JsonTextItem> GetEnumerator()
+		{
+			if (StoreOrderOfItems)
+				return _itemOrder.GetEnumerator();
+			return _items.Values.GetEnumerator();
+		}
+
+		IEnumerator IEnumerable.GetEnumerator()
+		{
+			if (StoreOrderOfItems)
+				return _itemOrder.GetEnumerator();
+			return _items.Values.GetEnumerator();
 		}
 	}
 }

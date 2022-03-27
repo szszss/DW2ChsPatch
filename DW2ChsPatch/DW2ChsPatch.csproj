@@ -52,6 +52,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Feature\CharacterNamePatch.cs" />
+    <Compile Include="Feature\FleetDesignFixPatch.cs" />
     <Compile Include="Feature\SituationDescriptionPatch.cs" />
     <Compile Include="Feature\AmbiguousWordsFixPatch.cs" />
     <Compile Include="Feature\FontPatch.cs" />
@@ -74,11 +75,14 @@
     <Compile Include="TextProcess\HintText.cs" />
     <Compile Include="TextProcess\JsonText.cs" />
     <Compile Include="TextProcess\SystemNameText.cs" />
+    <Compile Include="TextProcess\TranslationTextGenerator.cs" />
     <Compile Include="TextProcess\XmlText.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
-    <None Include="Patch.config" />
+    <None Include="Patch.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

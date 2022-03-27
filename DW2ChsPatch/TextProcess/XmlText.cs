@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -74,6 +75,17 @@ namespace DW2ChsPatch.TextProcess
 				new HarmonyMethod(typeof(XmlText), nameof(LoadFromStreamPrefix)));
 		}
 
+		private static JsonText GetTextJson(string name)
+		{
+			var filepath = Path.Combine(_dir, name);
+			if (File.Exists(filepath))
+			{
+				return new JsonText(filepath);
+			}
+
+			return null;
+		}
+
 		private static XmlDocument GetTextXml(string name)
 		{
 			var filepath = Path.Combine(_dir, name);
@@ -97,9 +109,61 @@ namespace DW2ChsPatch.TextProcess
 			return new MemoryStream(Encoding.Unicode.GetBytes(sb.ToString()));
 		}
 
+		delegate void OnProcessNodeJson(XmlNode dataNode, JsonText json, string keyPrefix);
+
 		delegate void OnProcessNode(XmlNode dataNode, XmlNode textNode);
 
 		delegate void OnCreateNodeJson(JsonText json, XmlNode dataNode, XmlNode textNode, string keyPrefix);
+
+		private static Stream ApplyJson(string fileName, Stream dataStream,
+			string rootNodeName, string childNodeName, string idName,
+			params string[] copiedKeys)
+		{
+			return ApplyJson(fileName, dataStream,
+				rootNodeName, childNodeName, idName,
+				null, copiedKeys);
+		}
+
+		private static Stream ApplyJson(string fileName, Stream dataStream,
+			string rootNodeName, string childNodeName, string idName,
+			OnProcessNodeJson onProcessNode,
+			params string[] copiedKeys)
+		{
+			fileName = Path.Combine(_dir, fileName);
+			if (!File.Exists(fileName))
+				return dataStream;
+
+			var json = new JsonText(fileName);
+			var dataDoc = new XmlDocument();
+			dataDoc.Load(dataStream);
+
+			var list = dataDoc[rootNodeName];
+			foreach (XmlNode childNode in list.ChildNodes)
+			{
+				if (childNode.NodeType == XmlNodeType.Comment)
+					continue;
+
+				var id = childNode[idName].InnerText;
+				var basicKey = $"{childNodeName}_{id}";
+
+				foreach (var key in copiedKeys)
+				{
+					var jsonKey = $"{basicKey}_{key}";
+					
+					var copyTo = childNode[key];
+					if (copyTo != null)
+					{
+						var copyFrom = json.GetString(jsonKey, copyTo.InnerText);
+						copyTo.InnerText = copyFrom;
+					}
+				}
+
+				if (onProcessNode != null)
+					onProcessNode(childNode, json, basicKey);
+			}
+
+			return XmlToStream(dataDoc);
+		}
 
 		private static Stream CopyText(string fileName, Stream dataStream,
 			string rootNodeName, string childNodeName, string idName,
@@ -451,7 +515,7 @@ namespace DW2ChsPatch.TextProcess
 									{
 										node2 = textIncidentsList[i]["Descriptions"];
 									}
-									CreateArrayJson(nodeJson, node1, node2,
+									CreateArrayJson(nodeJson, node1, node2, // TODO: FIXME: BUG
 										$"{prefix}_DiplomacyFactors_{i}");
 								}
 							}
@@ -598,15 +662,46 @@ namespace DW2ChsPatch.TextProcess
 
 			if (genericType == _tourItemListType)
 			{
-				var textDoc = GetTextXml("TourItems.xml");
-				if (textDoc == null)
+				var json = GetTextJson("TourItems.json");
+				if (json == null)
 					return;
 
-				__0 = XmlToStream(textDoc);
+				var translationTable = json.CreateOriginalTranslationMappingMap();
+				var dataDoc = new XmlDocument();
+				dataDoc.Load(__0);
+				var items = dataDoc.SelectNodes("//TourItem");
+
+				foreach (XmlNode item in items)
+				{
+					var titleNode = item["Title"];
+					if (titleNode != null && translationTable.TryGetValue(titleNode.InnerText, out var newStr1))
+					{
+						titleNode.InnerText = newStr1;
+					}
+
+					var steps = item.SelectNodes("Steps/TourStep");
+					foreach (XmlNode step in steps)
+					{
+						var stepTitleNode = step["StepTitle"];
+						if (stepTitleNode != null && translationTable.TryGetValue(stepTitleNode.InnerText, out var newStr2))
+						{
+							stepTitleNode.InnerText = newStr2;
+						}
+
+						var markupTextNode = step["MarkupText"];
+						if (markupTextNode != null && translationTable.TryGetValue(
+							UniteNewline(markupTextNode.InnerText), out var newStr3))
+						{
+							markupTextNode.InnerText = newStr3;
+						}
+					}
+				}
+				
+				__0 = XmlToStream(dataDoc);
 			}
 			else if (genericType == _colonyEventDefinitionListType)
 			{
-				__0 = CopyText("ColonyEventDefinitions.xml", __0,
+				__0 = ApplyJson("ColonyEventDefinitions.json", __0,
 					"ArrayOfColonyEventDefinition",
 					"ColonyEventDefinition",
 					"ColonyEventDefinitionId",
@@ -614,7 +709,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _componentDefinitionListType)
 			{
-				__0 = CopyText("ComponentDefinitions.xml", __0,
+				__0 = ApplyJson("ComponentDefinitions.json", __0,
 					"ArrayOfComponentDefinition",
 					"ComponentDefinition",
 					"ComponentId",
@@ -622,7 +717,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _creatureTypeListType)
 			{
-				__0 = CopyText("CreatureTypes.xml", __0,
+				__0 = ApplyJson("CreatureTypes.json", __0,
 					"ArrayOfCreatureType",
 					"CreatureType",
 					"CreatureTypeId",
@@ -630,25 +725,59 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _governmentListType)
 			{
-				__0 = CopyText("Governments.xml", __0,
+				__0 = ApplyJson("Governments.json", __0,
 					"ArrayOfGovernment",
 					"Government",
 					"GovernmentId",
-					OnProcessGovernmentNode,
+					(node, json, key) =>
+					{
+						ReplaceStringList(node["EmpireNameAdjectives"], json, $"{key}_EmpireNameAdjectives");
+						ReplaceStringList(node["EmpireNameNouns"], json, $"{key}_EmpireNameNouns");
+					},
 					"Name", "Description", "LeaderTitle", "CabinetTitle");
 			}
 			else if (genericType == _orbTypeListType)
 			{
-				__0 = CopyText("OrbTypes.xml", __0,
+				__0 = ApplyJson("OrbTypes.json", __0,
 					"ArrayOfOrbType",
 					"OrbType",
 					"OrbTypeId",
-					OnProcessOrbNode,
+					(node, json, key) =>
+					{
+						ReplaceStringList(node["RuinLocationDescriptions"], json, $"{key}_RuinLocationDescriptions");
+
+						var dataBonusList = node.SelectNodes("CommonBonuses/BonusRange");
+						if (dataBonusList != null && dataBonusList.Count > 0)
+						{
+							var map = new Dictionary<string, string>();
+							for (int i = 0; i < 10000; i++)
+							{
+								for (int j = 0; j < 10000; j++)
+								{
+									var basicKey = $"{key}_CommonBonuses_{i}_{j}";
+									if (json.GetOriginalAndTranslatedString(basicKey, out var ori, out var tran))
+										map[ori] = tran;
+									else
+									{
+										if (j > 0)
+											break;
+										else
+											goto BREAK2;
+									}
+								}
+							}
+							BREAK2:
+							for (var i = 0; i < dataBonusList.Count; i++)
+							{
+								ReplaceStringList(dataBonusList[i]["Descriptions"], map);
+							}
+						}
+					},
 					"Name", "Description");
 			}
 			else if (genericType == _planetaryFacilityDefinitionListType)
 			{
-				__0 = CopyText("PlanetaryFacilityDefinitions.xml", __0,
+				__0 = ApplyJson("PlanetaryFacilityDefinitions.json", __0,
 					"ArrayOfPlanetaryFacilityDefinition",
 					"PlanetaryFacilityDefinition",
 					"PlanetaryFacilityDefinitionId",
@@ -656,7 +785,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _artifactListType)
 			{
-				__0 = CopyText("Artifacts.xml", __0,
+				__0 = ApplyJson("Artifacts.json", __0,
 					"ArrayOfArtifact",
 					"Artifact",
 					"ArtifactId",
@@ -664,25 +793,66 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _raceListType)
 			{
-				__0 = CopyText("Races.xml", __0,
+				__0 = ApplyJson("Races.json", __0,
 					"ArrayOfRace",
 					"Race",
 					"RaceId",
-					OnProcessRaceNode,
+					(node, json, key) =>
+					{
+						var dataName = node["Name"];
+						if (dataName != null && 
+						    json.GetOriginalAndTranslatedString($"{key}_Name", out var ori, out var tran))
+						{
+							var oldName = dataName.InnerText;
+							if (oldName == ori || string.IsNullOrEmpty(ori))
+							{
+								var newName = tran;
+								RacePatch.SetRaceOriginalName(oldName, newName);
+								dataName.InnerText = newName;
+
+								ReplaceStringList(node["CharacterFirstNames"], json, $"{key}_CharacterFirstNames");
+								ReplaceStringList(node["CharacterLastNames"], json, $"{key}_CharacterLastNames");
+							}
+						}
+					},
 					"Description");
 			}
 			else if (genericType == _researchProjectDefinitionListType)
 			{
-				__0 = CopyText("ResearchProjectDefinitions.xml", __0,
+				__0 = ApplyJson("ResearchProjectDefinitions.json", __0,
 					"ArrayOfResearchProjectDefinition",
 					"ResearchProjectDefinition",
 					"ResearchProjectId",
-					OnProcessResearchNode,
+					(node, json, key) =>
+					{
+						var dataIncidentsList = node.SelectNodes("DiplomacyFactors/EmpireIncidentFactor");
+						if (dataIncidentsList != null)
+						{
+							var map = new Dictionary<string, string>();
+							for (int i = 0; i < 10000; i++)
+							{
+								var basicKey = $"{key}_DiplomacyFactors_{i}";
+								if (json.GetOriginalAndTranslatedString(basicKey, out var ori, out var tran))
+									map[ori] = tran;
+								else
+									break;
+							}
+
+							for (var i = 0; i < dataIncidentsList.Count; i++)
+							{
+								var node1 = dataIncidentsList[i]["Descriptions"];
+								if (node1 != null && map.TryGetValue(node1.InnerText, out var newStr))
+								{
+									node1.InnerText = newStr;
+								}
+							}
+						}
+					},
 					"Name", "Description"); // the Description is empty now
 			}
 			else if (genericType == _resourceListType)
 			{
-				__0 = CopyText("Resources.xml", __0,
+				__0 = ApplyJson("Resources.json", __0,
 					"ArrayOfResource",
 					"Resource",
 					"ResourceId",
@@ -690,7 +860,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _shipHullListType)
 			{
-				__0 = CopyText("ShipHulls.xml", __0,
+				__0 = ApplyJson("ShipHulls.json", __0,
 					"ArrayOfShipHull",
 					"ShipHull",
 					"ShipHullId",
@@ -698,7 +868,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _spaceItemDefinitionListType)
 			{
-				__0 = CopyText("SpaceItemDefinitions.xml", __0,
+				__0 = ApplyJson("SpaceItemDefinitions.json", __0,
 					"ArrayOfSpaceItemDefinition",
 					"SpaceItemDefinition",
 					"SpaceItemDefinitionId",
@@ -706,7 +876,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _troopDefinitionListType)
 			{
-				__0 = CopyText("TroopDefinitions.xml", __0,
+				__0 = ApplyJson("TroopDefinitions.json", __0,
 					"ArrayOfTroopDefinition",
 					"TroopDefinition",
 					"TroopDefinitionId",
@@ -714,7 +884,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _fleetTemplateListType)
 			{
-				__0 = CopyText("FleetTemplates.xml", __0,
+				__0 = ApplyJson("FleetTemplates.json", __0,
 					"ArrayOfFleetTemplate",
 					"FleetTemplate",
 					"FleetTemplateId",
@@ -722,7 +892,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _armyTemplateListType)
 			{
-				__0 = CopyText("ArmyTemplates.xml", __0,
+				__0 = ApplyJson("ArmyTemplates.json", __0,
 					"ArrayOfArmyTemplate",
 					"ArmyTemplate",
 					"ArmyTemplateId",
@@ -730,11 +900,93 @@ namespace DW2ChsPatch.TextProcess
 			}
 			else if (genericType == _gameEventListType)
 			{
-				__0 = CopyText("GameEvents.xml", __0,
+				__0 = ApplyJson("GameEvents.json", __0,
 					"ArrayOfGameEvent",
 					"GameEvent",
 					"Name",
-					OnProcessGameEventNode,
+					(node, json, key) =>
+					{
+						for (int pass = 0; pass < 2; pass++)
+						{
+							var nodeKey = pass == 0 
+								? "PlacementActions/GameEventAction" 
+								: "TriggerActions/GameEventAction";
+							var jsonKey = pass == 0
+								? "PlacementActions"
+								: "TriggerActions";
+							var eventNodes = node.SelectNodes(nodeKey);
+
+							if (eventNodes != null && eventNodes.Count > 0)
+							{
+								var titleMap = new Dictionary<string, string>();
+								var descMap = new Dictionary<string, string>();
+								var choiceMap = new Dictionary<string, string>();
+								var generatedMap = new Dictionary<string, string>();
+								var locationMap = new Dictionary<string, string>();
+								var generatedItemMap = new Dictionary<string, string>();
+
+								for (int i = 0; i < eventNodes.Count; i++)
+								{
+									var basicKey = $"{key}_{jsonKey}_{i}_";
+									if (json.GetOriginalAndTranslatedString(basicKey + "MessageTitle",
+										out var oriTitle, out var tranTitle))
+										titleMap[oriTitle] = tranTitle;
+									if (json.GetOriginalAndTranslatedString(basicKey + "Description",
+										out var oriDesc, out var tranDesc))
+										descMap[oriDesc] = tranDesc;
+									if (json.GetOriginalAndTranslatedString(basicKey + "ChoiceButtonText",
+										out var oriChoice, out var tranChoice))
+										choiceMap[oriChoice] = tranChoice;
+									if (json.GetOriginalAndTranslatedString(basicKey + "GeneratedItemName",
+										out var oriGenerated, out var tranGenerated))
+										generatedMap[oriGenerated] = tranGenerated;
+									if (json.GetOriginalAndTranslatedString(basicKey + "ActionLocationItemName",
+										out var oriLocation, out var tranLocation))
+										locationMap[oriLocation] = tranLocation;
+									for (int j = 0; j < 10000; j++)
+									{
+										if (json.GetOriginalAndTranslatedString(
+											basicKey + "GeneratedItemArtifactNames_" + j,
+											out var oriItem, out var tranItem))
+											generatedItemMap[oriItem] = tranItem;
+										else
+											break;
+									}
+								}
+
+								for (var i = 0; i < eventNodes.Count; i++)
+								{
+									var dataEvent = eventNodes[i];
+									if (dataEvent != null)
+									{
+										XmlNode childNode = null;
+
+										if ((childNode = dataEvent["MessageTitle"]) != null
+										    && titleMap.TryGetValue(childNode.InnerText, out var newTitle))
+											childNode.InnerText = newTitle;
+
+										if ((childNode = dataEvent["Description"]) != null
+										    && descMap.TryGetValue(UniteNewline(childNode.InnerText), out var newDesc))
+											childNode.InnerText = newDesc;
+
+										if ((childNode = dataEvent["ChoiceButtonText"]) != null
+										    && choiceMap.TryGetValue(childNode.InnerText, out var newChoice))
+											childNode.InnerText = newChoice;
+
+										if ((childNode = dataEvent["GeneratedItemName"]) != null
+										    && generatedMap.TryGetValue(childNode.InnerText, out var newItem))
+											childNode.InnerText = newItem;
+
+										if ((childNode = dataEvent["ActionLocationItemName"]) != null
+										    && locationMap.TryGetValue(childNode.InnerText, out var newLocation))
+											childNode.InnerText = newLocation;
+
+										ReplaceStringList(dataEvent["GeneratedItemArtifactNames"], generatedItemMap);
+									}
+								}
+							}
+						}
+					},
 					"Title", "Description");
 			}
 			else if (genericType == _locationEffectGroupDefinitionListType)
@@ -752,6 +1004,37 @@ namespace DW2ChsPatch.TextProcess
 					var newNode = dataStringList.OwnerDocument.CreateElement(strNodeName);
 					newNode.InnerText = n.InnerText;
 					dataStringList.AppendChild(newNode);
+				}
+			}
+		}
+
+		private static void ReplaceStringList(XmlNode dataStringList, JsonText json, string jsonKeyPrefix)
+		{
+			if (dataStringList != null)
+			{
+				var map = new Dictionary<string, string>();
+				for (int i = 0; i < 10000; i++)
+				{
+					var key = $"{jsonKeyPrefix}_{i}";
+					if (json.GetOriginalAndTranslatedString(key, out var ori, out var tran))
+						map[ori] = tran;
+					else
+						break;
+				}
+
+				ReplaceStringList(dataStringList, map);
+			}
+		}
+
+		private static void ReplaceStringList(XmlNode dataStringList, Dictionary<string, string> translation)
+		{
+			if (dataStringList != null)
+			{
+				foreach (XmlNode n in dataStringList.ChildNodes)
+				{
+					var text = n.InnerText;
+					if (translation.TryGetValue(text, out var newStr))
+						n.InnerText = newStr;
 				}
 			}
 		}
@@ -870,6 +1153,11 @@ namespace DW2ChsPatch.TextProcess
 			var dataTriggerActions = dataNode.SelectNodes("TriggerActions/GameEventAction");
 			var textTriggerActions = textNode.SelectNodes("TriggerActions/GameEventAction");
 			OnProcessGameEventNodeDo(dataTriggerActions, textTriggerActions);
+		}
+
+		private static string UniteNewline(string str)
+		{
+			return new StringBuilder(str).Replace("\\n", "\n").Replace("\r\n", "\n").Replace("\n", "\\n").ToString();
 		}
 	}
 }

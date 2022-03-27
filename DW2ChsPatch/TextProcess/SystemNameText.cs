@@ -47,8 +47,13 @@ namespace DW2ChsPatch.TextProcess
 			var names = field.GetValue(null) as List<string>;
 			if (names != null && File.Exists(filepath))
 			{
-				names.Clear();
-				ReadTxtIntoList(filepath, names);
+				var json = new JsonText(filepath);
+
+				for (var i = 0; i < names.Count; i++)
+				{
+					var str = names[i];
+					names[i] = json.GetString(str, str);
+				}
 			}
 		}
 

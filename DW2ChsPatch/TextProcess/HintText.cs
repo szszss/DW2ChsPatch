@@ -6,7 +6,7 @@ namespace DW2ChsPatch.TextProcess
 {
 	public static class HintText
 	{
-		private const string FILENAME = "Hints.txt";
+		private const string FILENAME = "Hints.json";
 
 		private static string _dir;
 
@@ -25,13 +25,13 @@ namespace DW2ChsPatch.TextProcess
 			var hints = field.GetValue(null) as List<string>;
 			if (hints != null && File.Exists(filepath))
 			{
-				var lines = File.ReadAllLines(filepath);
-				hints.Clear();
-				foreach (var line in lines)
+				var json = new JsonText(filepath);
+				var translationTable = json.CreateOriginalTranslationMappingMap();
+
+				for (var i = 0; i < hints.Count; i++)
 				{
-					var line2 = line.Trim();
-					if (!string.IsNullOrWhiteSpace(line2))
-						hints.Add(line2);
+					if (translationTable.TryGetValue(hints[i], out var newStr))
+						hints[i] = newStr;
 				}
 			}
 		}
