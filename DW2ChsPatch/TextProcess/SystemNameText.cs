@@ -6,7 +6,7 @@ namespace DW2ChsPatch.TextProcess
 {
 	public static class SystemNameText
 	{
-		private const string FILENAME = "SystemNames.txt";
+		private const string FILENAME = "SystemNames.json";
 
 		private static string _dir;
 
@@ -18,7 +18,24 @@ namespace DW2ChsPatch.TextProcess
 				null, new HarmonyMethod(typeof(SystemNameText), nameof(Postfix)));
 		}
 
-		private static void ReadTxtIntoList(string filepath, List<string> namelist)
+		private static void Postfix()
+		{
+			var filepath = Path.Combine(_dir, FILENAME);
+			var json = JsonText.CreateOrGetJsonText(FILENAME, filepath);
+			var field = AccessTools.Field("DistantWorlds.Types.Galaxy:SystemNames");
+			var names = field.GetValue(null) as List<string>;
+			if (names != null && json != null)
+			{
+				for (var i = 0; i < names.Count; i++)
+				{
+					var str = names[i];
+					json.GetString(str, str, out var result);
+					names[i] = result;
+				}
+			}
+		}
+
+		/*private static void ReadTxtIntoList(string filepath, List<string> namelist)
 		{
 			if (File.Exists(filepath))
 			{
@@ -39,24 +56,7 @@ namespace DW2ChsPatch.TextProcess
 				}
 			}
 		}
-
-		private static void Postfix()
-		{
-			var filepath = Path.Combine(_dir, FILENAME);
-			var field = AccessTools.Field("DistantWorlds.Types.Galaxy:SystemNames");
-			var names = field.GetValue(null) as List<string>;
-			if (names != null && File.Exists(filepath))
-			{
-				var json = new JsonText(filepath);
-
-				for (var i = 0; i < names.Count; i++)
-				{
-					var str = names[i];
-					names[i] = json.GetString(str, str);
-				}
-			}
-		}
-
+		 
 		public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
 		{
 			var json = new JsonText();
@@ -78,6 +78,6 @@ namespace DW2ChsPatch.TextProcess
 				json.SetString(i.ToString(), origin, translate);
 			}
 			json.ExportToFile(pathOutput);
-		}
+		}*/
 	}
 }

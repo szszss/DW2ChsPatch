@@ -21,22 +21,34 @@ namespace DW2ChsPatch.TextProcess
 		private static void Postfix()
 		{
 			var filepath = Path.Combine(_dir, FILENAME);
+			var json = JsonText.CreateOrGetJsonText(FILENAME, filepath);
 			var field = AccessTools.Field("DistantWorlds.Types.Galaxy:HintText");
 			var hints = field.GetValue(null) as List<string>;
-			if (hints != null && File.Exists(filepath))
+			if (hints != null && json != null)
 			{
-				var json = new JsonText(filepath);
-				var translationTable = json.CreateOriginalTranslationMappingMap();
-
-				for (var i = 0; i < hints.Count; i++)
+				if (TranslationTextGenerator.Enable)
 				{
-					if (translationTable.TryGetValue(hints[i], out var newStr))
-						hints[i] = newStr;
+					json.GetStringArray("", hints.ToArray(), out var results, false);
+
+					for (var i = 0; i < hints.Count; i++)
+					{
+						hints[i] = results[i];
+					}
+				}
+				else
+				{
+					var translationTable = json.CreateOriginalTranslationMappingMap();
+
+					for (var i = 0; i < hints.Count; i++)
+					{
+						if (translationTable.TryGetValue(hints[i], out var newStr))
+							hints[i] = newStr;
+					}
 				}
 			}
 		}
 
-		public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
+		/*public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
 		{
 			var json = new JsonText();
 			var originLines = File.ReadAllLines(pathOrigin);
@@ -57,6 +69,6 @@ namespace DW2ChsPatch.TextProcess
 				json.SetString(i.ToString(), origin, translate);
 			}
 			json.ExportToFile(pathOutput);
-		}
+		}*/
 	}
 }

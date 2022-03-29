@@ -12,9 +12,15 @@ namespace DW2ChsPatch.TextProcess
 	{
 		public static bool StoreOrderOfItems = false;
 
+		public static bool StrictMode = false;
+
+		public string Filename { set; get; }
+
 		private Dictionary<string, JsonTextItem> _items = new Dictionary<string, JsonTextItem>();
 
 		private LinkedList<JsonTextItem> _itemOrder = new LinkedList<JsonTextItem>();
+
+		private JsonTextItem _lastTouchedItem = null;
 
 		public JsonText()
 		{
@@ -26,11 +32,38 @@ namespace DW2ChsPatch.TextProcess
 			ImportFromFile(filepath);
 		}
 
+		public static JsonText CreateOrGetJsonText(string filename, string filepath)
+		{
+			JsonText json = null;
+
+			if (TranslationTextGenerator.Enable)
+			{
+				json = TranslationTextGenerator.GetJson(filename);
+				if (json != null)
+					return json;
+			}
+
+			if (File.Exists(filepath))
+				json = new JsonText(filepath);
+			else if (TranslationTextGenerator.Enable)
+				json = new JsonText();
+
+			if (TranslationTextGenerator.Enable)
+			{
+				TranslationTextGenerator.AddJson(filename, json);
+				json.Filename = filename;
+			}
+
+			return json;
+		}
+
+		/*[Obsolete]
 		public void SetString(string key, string original, string translation = null, string context = null)
 		{
 			SetStringAfter(null, key, original, translation, context);
 		}
 
+		[Obsolete]
 		public void SetStringAfter(string afterKey, string key, string original, string translation = null, string context = null)
 		{
 			var item = new JsonTextItem(key, original, translation, context);
@@ -45,9 +78,85 @@ namespace DW2ChsPatch.TextProcess
 					? _itemOrder.AddAfter(afterNode, item)
 					: _itemOrder.AddLast(item);
 			}
+		}*/
+
+		public bool CheckOriginal(string key, string expectedOriginal)
+		{
+			if (_items.TryGetValue(key, out var existedItem))
+				return existedItem.Original == expectedOriginal;
+			return false;
 		}
 
-		public string GetString(string key, string original)
+		public void GetString(string key, string original, out string outText)
+		{
+			if (string.IsNullOrEmpty(original))
+			{
+				outText = original;
+				return;
+			}
+
+			original = original.UniteNewline();
+			if (_items.TryGetValue(key, out var existedItem))
+			{
+				_lastTouchedItem = existedItem;
+				if (existedItem.Original == original)
+				{
+					existedItem.Status = TextPresent.Used;
+					outText = string.IsNullOrEmpty(existedItem.Translation)
+						? original : existedItem.Translation;
+				}
+				else
+				{
+					outText = StrictMode ? original : existedItem.Translation;
+					if (TranslationTextGenerator.Enable)
+					{
+						existedItem.Status = TextPresent.Modified;
+						existedItem.Context =
+							$"旧原文: {existedItem.Original}\n\n新原文: {original}\n\n旧译文: {existedItem.Translation}"; ;
+						TranslationTextGenerator.RecordModifiedItem(Filename, key, 
+							existedItem.Original, original, existedItem.Translation);
+						existedItem.Original = original;
+						existedItem.Translation = null;
+						existedItem.Stage = 0;
+					}
+				}
+			}
+			else
+			{
+				outText = original;
+				if (TranslationTextGenerator.Enable)
+				{
+					var item = new JsonTextItem(key, original);
+					item.Status = TextPresent.New;
+					TranslationTextGenerator.RecordAddedItem(Filename, key, original);
+					_items[key] = item;
+					if (StoreOrderOfItems)
+					{
+						item.Node = _lastTouchedItem != null
+							? _itemOrder.AddAfter(_lastTouchedItem.Node, item)
+							: _itemOrder.AddLast(item);
+					}
+					_lastTouchedItem = item;
+				}
+			}
+		}
+
+		public void GetStringArray(string keyPrefix, string[] original, out string[] outTexts, bool appendUnderline = true)
+		{
+			outTexts = new string[original.Length];
+
+			for (var i = 0; i < original.Length; i++)
+			{
+				var key = appendUnderline 
+					? $"{keyPrefix}_{i}"
+					: $"{keyPrefix}{i}";
+				var ori = original[i];
+				GetString(key, ori, out var text);
+				outTexts[i] = text;
+			}
+		}
+
+		/*public string GetString(string key, string original)
 		{
 			return GetString(key, original, 0);
 		}
@@ -57,7 +166,7 @@ namespace DW2ChsPatch.TextProcess
 			if (_items.TryGetValue(key, out var item) && item.Stage >= minStage)
 				return string.IsNullOrEmpty(item.Translation) ? original : item.Translation;
 			return original;
-		}
+		}*/
 
 		public bool GetOriginalAndTranslatedString(string key, out string original, out string translated)
 		{
@@ -87,6 +196,8 @@ namespace DW2ChsPatch.TextProcess
 				{
 					foreach (var item in array.Distinct(new JsonTextItemComparer()))
 					{
+						if (!string.IsNullOrEmpty(item.Original))
+							item.Original = item.Original.UniteNewline();
 						item.Node = _itemOrder.AddLast(item);
 						_items[item.Key] = item;
 					}
@@ -95,6 +206,8 @@ namespace DW2ChsPatch.TextProcess
 				{
 					foreach (var item in array)
 					{
+						if (!string.IsNullOrEmpty(item.Original))
+							item.Original = item.Original.UniteNewline();
 						_items[item.Key] = item;
 					}
 				}
@@ -144,13 +257,21 @@ namespace DW2ChsPatch.TextProcess
 			return map;
 		}
 
+		public enum TextPresent : ushort
+		{
+			Unused = 0,
+			Modified = 1,
+			New = 2,
+			Used = 3
+		}
+
 		public class JsonTextItem
 		{
 			[JsonProperty("key")]
 			public string Key { private set; get; }
 
 			[JsonProperty("original")]
-			public string Original { private set; get; }
+			public string Original { set; get; }
 
 			[JsonProperty("translation")]
 			public string Translation { set; get; }
@@ -159,7 +280,10 @@ namespace DW2ChsPatch.TextProcess
 			public string Context { set; get; }
 
 			[JsonProperty("stage")]
-			public int Stage { set; get; }
+			public short Stage { set; get; }
+
+			[JsonIgnore]
+			public TextPresent Status { set; get; } = TextPresent.Unused;
 
 			[JsonIgnore]
 			internal LinkedListNode<JsonTextItem> Node { set; get; }
@@ -171,7 +295,7 @@ namespace DW2ChsPatch.TextProcess
 				this.Original = original;
 				this.Translation = translation;
 				this.Context = context;
-				this.Stage = stage;
+				this.Stage = (short) stage;
 			}
 
 			public JsonTextItem()

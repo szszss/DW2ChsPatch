@@ -72,55 +72,15 @@ namespace DW2ChsPatch.TextProcess
 			}
 		}
 
-		private static bool ReadOriginalGalactopedia(string path, ref string title, ref string text, Encoding encoding)
+		private static bool ReadTranslatedGalactopedia(string filename, string path, ref string title, ref string text)
 		{
-			if (File.Exists(path))
+			var json = JsonText.CreateOrGetJsonText(filename, path);
+			if (json != null)
 			{
-				var content = File.ReadAllText(path, encoding);
-				if (!string.IsNullOrWhiteSpace(content))
-				{
-					var firstLine = content.Split('\r', '\n')[0].Trim();
-					if (firstLine.StartsWith(";"))
-					{
-						title = firstLine.Substring(1);
-						content = content.Substring(content.IndexOf('\n') + 1);
-					}
-
-					text = content;
-
-					return true;
-				}
-			}
-
-			return false;
-		}
-
-		private static bool ReadTranslatedGalactopedia(string path, ref string title, ref string text)
-		{
-			if (File.Exists(path))
-			{
-				JsonText json = new JsonText(path);
-				title = json.GetString("title", title);
-				text = json.GetString("text", text);
-				return true;
-			}
-
-			return false;
-		}
-
-		private static bool ReadTranslatedGalactopedia(string path,
-			out string oTitle, out string tTitle,
-			out string oText, out string tText)
-		{
-			oTitle = null;
-			tTitle = null;
-			oText = null;
-			tText = null;
-			if (File.Exists(path))
-			{
-				JsonText json = new JsonText(path);
-				json.GetOriginalAndTranslatedString("title", out oTitle, out tTitle);
-				json.GetOriginalAndTranslatedString("text", out oText, out tText);
+				json.GetString("title", title, out var resultTitle);
+				json.GetString("text", text, out var resultText);
+				title = resultTitle;
+				text = resultText;
 				return true;
 			}
 
@@ -132,13 +92,15 @@ namespace DW2ChsPatch.TextProcess
 		{
 			if (category == 1) // GameConcepts
 			{
-				var filename = $"chs\\Galactopedia\\GameConcepts\\{title}.json";
-				ReadTranslatedGalactopedia(filename, ref title, ref text);
+				var filename = $"Galactopedia\\GameConcepts\\{title}.json";
+				var filepath = $"chs\\{filename}";
+				ReadTranslatedGalactopedia(filename, filepath, ref title, ref text);
 			}
 			else if (category == 2) // GameScreens
 			{
-				var filename = $"chs\\Galactopedia\\GameScreens\\{title}.json";
-				ReadTranslatedGalactopedia(filename, ref title, ref text);
+				var filename = $"Galactopedia\\GameScreens\\{title}.json";
+				var filepath = $"chs\\{filename}";
+				ReadTranslatedGalactopedia(filename, filepath, ref title, ref text);
 			}
 
 			var typedCategory = Enum.GetValues(_typeGalactopediaCategory).GetValue(category);
@@ -146,35 +108,6 @@ namespace DW2ChsPatch.TextProcess
 			{
 				galactopediaTopicId, title, text, typedCategory, relatedItem, isCategoryHeading
 			});
-		}
-
-		public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
-		{
-			var originTitle = Path.GetFileNameWithoutExtension(pathOrigin);
-			var originText = "";
-			ReadOriginalGalactopedia(pathOrigin, ref originTitle, ref originText, Encoding.GetEncoding(1252));
-
-			string tranlatedTitle = null;
-			string tranlatedText = null;
-			string oldTranslatedTitle = null;
-			string oldTranslatedText = null;
-			if (File.Exists(pathTranslate))
-			{
-				ReadTranslatedGalactopedia(pathTranslate, 
-					out var oTitle, out var tTitle,
-					out var oText, out var tText);
-
-				TextHelper.CheckAndGetTranslatedString(originTitle, oTitle, tTitle, 
-					out tranlatedTitle, out oldTranslatedTitle);
-				TextHelper.CheckAndGetTranslatedString(originText, oText, tText,
-					out tranlatedText, out oldTranslatedText);
-			}
-
-			var gameTextJson = new JsonText();
-			gameTextJson.SetString("title", originTitle, tranlatedTitle, oldTranslatedTitle);
-			gameTextJson.SetString("text", originText, tranlatedText, oldTranslatedText);
-
-			gameTextJson.ExportToFile(pathOutput);
 		}
 	}
 }

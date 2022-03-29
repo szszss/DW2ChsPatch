@@ -78,15 +78,10 @@ namespace DW2ChsPatch.TextProcess
 		private static JsonText GetTextJson(string name)
 		{
 			var filepath = Path.Combine(_dir, name);
-			if (File.Exists(filepath))
-			{
-				return new JsonText(filepath);
-			}
-
-			return null;
+			return JsonText.CreateOrGetJsonText(name, filepath);
 		}
 
-		private static XmlDocument GetTextXml(string name)
+		/*private static XmlDocument GetTextXml(string name)
 		{
 			var filepath = Path.Combine(_dir, name);
 			if (File.Exists(filepath))
@@ -97,7 +92,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 
 			return null;
-		}
+		}*/
 
 		private static Stream XmlToStream(XmlDocument xmlDoc)
 		{
@@ -111,9 +106,9 @@ namespace DW2ChsPatch.TextProcess
 
 		delegate void OnProcessNodeJson(XmlNode dataNode, JsonText json, string keyPrefix);
 
-		delegate void OnProcessNode(XmlNode dataNode, XmlNode textNode);
+		//delegate void OnProcessNode(XmlNode dataNode, XmlNode textNode);
 
-		delegate void OnCreateNodeJson(JsonText json, XmlNode dataNode, XmlNode textNode, string keyPrefix);
+		//delegate void OnCreateNodeJson(JsonText json, XmlNode dataNode, XmlNode textNode, string keyPrefix);
 
 		private static Stream ApplyJson(string fileName, Stream dataStream,
 			string rootNodeName, string childNodeName, string idName,
@@ -129,22 +124,30 @@ namespace DW2ChsPatch.TextProcess
 			OnProcessNodeJson onProcessNode,
 			params string[] copiedKeys)
 		{
-			fileName = Path.Combine(_dir, fileName);
-			if (!File.Exists(fileName))
+			var filepath = Path.Combine(_dir, fileName);
+			var json = JsonText.CreateOrGetJsonText(fileName, filepath);
+			if (json == null)
 				return dataStream;
-
-			var json = new JsonText(fileName);
+			
 			var dataDoc = new XmlDocument();
 			dataDoc.Load(dataStream);
 
 			var list = dataDoc[rootNodeName];
+			var usedId = new HashSet<string>();
 			foreach (XmlNode childNode in list.ChildNodes)
 			{
 				if (childNode.NodeType == XmlNodeType.Comment)
 					continue;
 
 				var id = childNode[idName].InnerText;
-				var basicKey = $"{childNodeName}_{id}";
+				var jsonId = id;
+				int i = 1;
+				while (!usedId.Add(jsonId))
+				{
+					jsonId = $"{id}__{i}";
+					i++;
+				}
+				var basicKey = $"{childNodeName}_{jsonId}";
 
 				foreach (var key in copiedKeys)
 				{
@@ -153,7 +156,7 @@ namespace DW2ChsPatch.TextProcess
 					var copyTo = childNode[key];
 					if (copyTo != null)
 					{
-						var copyFrom = json.GetString(jsonKey, copyTo.InnerText);
+						json.GetString(jsonKey, copyTo.InnerText, out var copyFrom);
 						copyTo.InnerText = copyFrom;
 					}
 				}
@@ -165,7 +168,7 @@ namespace DW2ChsPatch.TextProcess
 			return XmlToStream(dataDoc);
 		}
 
-		private static Stream CopyText(string fileName, Stream dataStream,
+		/*private static Stream CopyText(string fileName, Stream dataStream,
 			string rootNodeName, string childNodeName, string idName,
 			params string[] copiedKeys)
 		{
@@ -217,17 +220,17 @@ namespace DW2ChsPatch.TextProcess
 			}
 
 			return XmlToStream(dataDoc);
-		}
+		}*/
 
-		private static void JsonSetStringWithoutUnmodifiedTranslation(
+		/*private static void JsonSetStringWithoutUnmodifiedTranslation(
 			JsonText json, string key, string origin, string translation)
 		{
 			if (origin == translation)
 				translation = null;
 			json.SetString(key, origin, translation);
-		}
+		}*/
 
-		private static JsonText CreateTranslationJsonForTour(
+		/*private static JsonText CreateTranslationJsonForTour(
 			XmlDocument originDoc, XmlDocument translateDoc)
 		{
 			var rootNodeName = "ArrayOfTourItem";
@@ -306,9 +309,9 @@ namespace DW2ChsPatch.TextProcess
 			}
 
 			return json;
-		}
+		}*/
 
-		private static JsonText CreateTranslationJsonDo(
+		/*private static JsonText CreateTranslationJsonDo(
 			XmlDocument originDoc, XmlDocument translateDoc,
 			string rootNodeName, string childNodeName, string idName,
 			params string[] copiedKeys)
@@ -316,9 +319,9 @@ namespace DW2ChsPatch.TextProcess
 			return CreateTranslationJsonDo(originDoc, translateDoc,
 				rootNodeName, childNodeName, idName,
 				null, copiedKeys);
-		}
+		}*/
 
-		private static JsonText CreateTranslationJsonDo(
+		/*private static JsonText CreateTranslationJsonDo(
 			XmlDocument originDoc, XmlDocument translateDoc,
 			string rootNodeName, string childNodeName, string idName,
 			OnCreateNodeJson onProcessNode,
@@ -351,9 +354,9 @@ namespace DW2ChsPatch.TextProcess
 			}
 
 			return json;
-		}
+		}*/
 
-		private static void CreateArrayJson(JsonText json, XmlNode originNode, XmlNode translateNode, string keyPrefix)
+		/*private static void CreateArrayJson(JsonText json, XmlNode originNode, XmlNode translateNode, string keyPrefix)
 		{
 			if (originNode == null)
 				return;
@@ -379,9 +382,9 @@ namespace DW2ChsPatch.TextProcess
 					json.SetString($"{keyPrefix}_{i}", ori, tran);
 				}
 			}
-		}
+		}*/
 
-		public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate, string type)
+		/*public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate, string type)
 		{
 			var originDoc = new XmlDocument();
 			var translateDoc = new XmlDocument();
@@ -589,9 +592,9 @@ namespace DW2ChsPatch.TextProcess
 			{
 				json.ExportToFile(pathOutput);
 			}
-		}
+		}*/
 
-		private static void OnCreateNodeJsonForEventDo(JsonText json, XmlNodeList dataEvents, XmlNodeList textEvents, string keyPrefix)
+		/*private static void OnCreateNodeJsonForEventDo(JsonText json, XmlNodeList dataEvents, XmlNodeList textEvents, string keyPrefix)
 		{
 			if (dataEvents == null)
 				return;
@@ -654,7 +657,7 @@ namespace DW2ChsPatch.TextProcess
 				var textPlacementActions = textEvent?["GeneratedItemArtifactNames"];
 				CreateArrayJson(json, dataPlacementActions, textPlacementActions, key);
 			}
-		}
+		}*/
 
 		private static void LoadFromStreamPrefix(object __instance, ref Stream __0)
 		{
@@ -666,35 +669,62 @@ namespace DW2ChsPatch.TextProcess
 				if (json == null)
 					return;
 
-				var translationTable = json.CreateOriginalTranslationMappingMap();
 				var dataDoc = new XmlDocument();
 				dataDoc.Load(__0);
 				var items = dataDoc.SelectNodes("//TourItem");
 
+				var generating = TranslationTextGenerator.Enable;
+				var translationTable = generating ? null : json.CreateOriginalTranslationMappingMap();
+				int indexOfTour = 0;
 				foreach (XmlNode item in items)
 				{
 					var titleNode = item["Title"];
-					if (titleNode != null && translationTable.TryGetValue(titleNode.InnerText, out var newStr1))
+					if (titleNode != null)
 					{
-						titleNode.InnerText = newStr1;
+						if (generating)
+						{
+							json.GetString($"TourItem_{indexOfTour}_Title", titleNode.InnerText, out var result);
+							titleNode.InnerText = result;
+						}
+						else if (translationTable.TryGetValue(titleNode.InnerText.UniteNewline(), out var newStr1))
+							titleNode.InnerText = newStr1;
 					}
 
 					var steps = item.SelectNodes("Steps/TourStep");
+					int indexOfStep = 0;
 					foreach (XmlNode step in steps)
 					{
 						var stepTitleNode = step["StepTitle"];
-						if (stepTitleNode != null && translationTable.TryGetValue(stepTitleNode.InnerText, out var newStr2))
+						if (stepTitleNode != null)
 						{
-							stepTitleNode.InnerText = newStr2;
+							if (generating)
+							{
+								json.GetString($"TourItem_{indexOfTour}_Step_{indexOfStep}_StepTitle", 
+									stepTitleNode.InnerText, out var result);
+								stepTitleNode.InnerText = result;
+							}
+							else if (translationTable.TryGetValue(stepTitleNode.InnerText.UniteNewline(), out var newStr1))
+								stepTitleNode.InnerText = newStr1;
 						}
 
 						var markupTextNode = step["MarkupText"];
-						if (markupTextNode != null && translationTable.TryGetValue(
-							UniteNewline(markupTextNode.InnerText), out var newStr3))
+						if (markupTextNode != null)
 						{
-							markupTextNode.InnerText = newStr3;
+							var text = markupTextNode.InnerText;
+							if (generating)
+							{
+								json.GetString($"TourItem_{indexOfTour}_Step_{indexOfStep}_MarkupText",
+									text, out var result);
+								markupTextNode.InnerText = result;
+							}
+							else if (translationTable.TryGetValue(text.UniteNewline(), out var newStr1))
+								markupTextNode.InnerText = newStr1;
 						}
+
+						indexOfStep++;
 					}
+
+					indexOfTour++;
 				}
 				
 				__0 = XmlToStream(dataDoc);
@@ -749,27 +779,38 @@ namespace DW2ChsPatch.TextProcess
 						var dataBonusList = node.SelectNodes("CommonBonuses/BonusRange");
 						if (dataBonusList != null && dataBonusList.Count > 0)
 						{
-							var map = new Dictionary<string, string>();
-							for (int i = 0; i < 10000; i++)
+							if (TranslationTextGenerator.Enable || JsonText.StrictMode)
 							{
-								for (int j = 0; j < 10000; j++)
+								for (var i = 0; i < dataBonusList.Count; i++)
 								{
-									var basicKey = $"{key}_CommonBonuses_{i}_{j}";
-									if (json.GetOriginalAndTranslatedString(basicKey, out var ori, out var tran))
-										map[ori] = tran;
-									else
-									{
-										if (j > 0)
-											break;
-										else
-											goto BREAK2;
-									}
+									var bonusNode = dataBonusList[i];
+									ReplaceStringList(bonusNode["Descriptions"], json, $"{key}_CommonBonuses_{i}");
 								}
 							}
-							BREAK2:
-							for (var i = 0; i < dataBonusList.Count; i++)
+							else
 							{
-								ReplaceStringList(dataBonusList[i]["Descriptions"], map);
+								var map = new Dictionary<string, string>();
+								for (int i = 0; i < 10000; i++)
+								{
+									for (int j = 0; j < 10000; j++)
+									{
+										var basicKey = $"{key}_CommonBonuses_{i}_{j}";
+										if (json.GetOriginalAndTranslatedString(basicKey, out var ori, out var tran))
+											map[ori] = tran;
+										else
+										{
+											if (j > 0)
+												break;
+											else
+												goto BREAK2;
+										}
+									}
+								}
+								BREAK2:
+								for (var i = 0; i < dataBonusList.Count; i++)
+								{
+									ReplaceStringList(dataBonusList[i]["Descriptions"], map);
+								}
 							}
 						}
 					},
@@ -800,22 +841,27 @@ namespace DW2ChsPatch.TextProcess
 					(node, json, key) =>
 					{
 						var dataName = node["Name"];
-						if (dataName != null && 
-						    json.GetOriginalAndTranslatedString($"{key}_Name", out var ori, out var tran))
+						if (dataName != null)
 						{
 							var oldName = dataName.InnerText;
-							if (oldName == ori || string.IsNullOrEmpty(ori))
+							if (json.CheckOriginal($"{key}_Name", oldName))
 							{
-								var newName = tran;
+								json.GetString($"{key}_Name", oldName, out var newName);
 								RacePatch.SetRaceOriginalName(oldName, newName);
 								dataName.InnerText = newName;
+
+								var descName = node["Description"];
+								if (descName != null)
+								{
+									json.GetString($"{key}_Description", descName.InnerText, out var newDesc);
+									descName.InnerText = newDesc;
+								}
 
 								ReplaceStringList(node["CharacterFirstNames"], json, $"{key}_CharacterFirstNames");
 								ReplaceStringList(node["CharacterLastNames"], json, $"{key}_CharacterLastNames");
 							}
 						}
-					},
-					"Description");
+					});
 			}
 			else if (genericType == _researchProjectDefinitionListType)
 			{
@@ -828,22 +874,37 @@ namespace DW2ChsPatch.TextProcess
 						var dataIncidentsList = node.SelectNodes("DiplomacyFactors/EmpireIncidentFactor");
 						if (dataIncidentsList != null)
 						{
-							var map = new Dictionary<string, string>();
-							for (int i = 0; i < 10000; i++)
+							if (TranslationTextGenerator.Enable || JsonText.StrictMode)
 							{
-								var basicKey = $"{key}_DiplomacyFactors_{i}";
-								if (json.GetOriginalAndTranslatedString(basicKey, out var ori, out var tran))
-									map[ori] = tran;
-								else
-									break;
-							}
-
-							for (var i = 0; i < dataIncidentsList.Count; i++)
-							{
-								var node1 = dataIncidentsList[i]["Descriptions"];
-								if (node1 != null && map.TryGetValue(node1.InnerText, out var newStr))
+								for (var i = 0; i < dataIncidentsList.Count; i++)
 								{
-									node1.InnerText = newStr;
+									var node1 = dataIncidentsList[i]["Description"];
+									if (node1 != null)
+									{
+										json.GetString($"{key}_DiplomacyFactors_{i}", node1.InnerText, out var newStr);
+										node1.InnerText = newStr;
+									}
+								}
+							}
+							else
+							{
+								var map = new Dictionary<string, string>();
+								for (int i = 0; i < 10000; i++)
+								{
+									var basicKey = $"{key}_DiplomacyFactors_{i}";
+									if (json.GetOriginalAndTranslatedString(basicKey, out var ori, out var tran))
+										map[ori] = tran;
+									else
+										break;
+								}
+
+								for (var i = 0; i < dataIncidentsList.Count; i++)
+								{
+									var node1 = dataIncidentsList[i]["Description"];
+									if (node1 != null && map.TryGetValue(node1.InnerText.UniteNewline(), out var newStr))
+									{
+										node1.InnerText = newStr;
+									}
 								}
 							}
 						}
@@ -918,70 +979,128 @@ namespace DW2ChsPatch.TextProcess
 
 							if (eventNodes != null && eventNodes.Count > 0)
 							{
-								var titleMap = new Dictionary<string, string>();
-								var descMap = new Dictionary<string, string>();
-								var choiceMap = new Dictionary<string, string>();
-								var generatedMap = new Dictionary<string, string>();
-								var locationMap = new Dictionary<string, string>();
-								var generatedItemMap = new Dictionary<string, string>();
-
-								for (int i = 0; i < eventNodes.Count; i++)
+								if (TranslationTextGenerator.Enable || JsonText.StrictMode)
 								{
-									var basicKey = $"{key}_{jsonKey}_{i}_";
-									if (json.GetOriginalAndTranslatedString(basicKey + "MessageTitle",
-										out var oriTitle, out var tranTitle))
-										titleMap[oriTitle] = tranTitle;
-									if (json.GetOriginalAndTranslatedString(basicKey + "Description",
-										out var oriDesc, out var tranDesc))
-										descMap[oriDesc] = tranDesc;
-									if (json.GetOriginalAndTranslatedString(basicKey + "ChoiceButtonText",
-										out var oriChoice, out var tranChoice))
-										choiceMap[oriChoice] = tranChoice;
-									if (json.GetOriginalAndTranslatedString(basicKey + "GeneratedItemName",
-										out var oriGenerated, out var tranGenerated))
-										generatedMap[oriGenerated] = tranGenerated;
-									if (json.GetOriginalAndTranslatedString(basicKey + "ActionLocationItemName",
-										out var oriLocation, out var tranLocation))
-										locationMap[oriLocation] = tranLocation;
-									for (int j = 0; j < 10000; j++)
+									for (int i = 0; i < eventNodes.Count; i++)
 									{
-										if (json.GetOriginalAndTranslatedString(
-											basicKey + "GeneratedItemArtifactNames_" + j,
-											out var oriItem, out var tranItem))
-											generatedItemMap[oriItem] = tranItem;
-										else
-											break;
+										var dataEvent = eventNodes[i];
+										if (dataEvent != null)
+										{
+											XmlNode childNode = null;
+											var basicKey = $"{key}_{jsonKey}_{i}_";
+
+											if ((childNode = dataEvent["MessageTitle"]) != null)
+											{
+												json.GetString(basicKey + "MessageTitle", childNode.InnerText, out var result);
+												childNode.InnerText = result;
+											}
+
+											if ((childNode = dataEvent["Description"]) != null)
+											{
+												json.GetString(basicKey + "Description", childNode.InnerText, out var result);
+												childNode.InnerText = result;
+											}
+
+											if ((childNode = dataEvent["ChoiceButtonText"]) != null)
+											{
+												json.GetString(basicKey + "ChoiceButtonText", childNode.InnerText, out var result);
+												childNode.InnerText = result;
+											}
+
+											if ((childNode = dataEvent["GeneratedItemName"]) != null)
+											{
+												var type = dataEvent["Type"]?.InnerText;
+												switch (type)
+												{
+													case "EnableEvent":
+													case "DisableEvent":
+													case "TriggerEvent":
+													case "CustomCode":
+														break;
+													default:
+														json.GetString(basicKey + "GeneratedItemName", childNode.InnerText, out var result);
+														childNode.InnerText = result;
+														break;
+												}
+											}
+
+											if ((childNode = dataEvent["ActionLocationItemName"]) != null)
+											{
+												json.GetString(basicKey + "ActionLocationItemName", childNode.InnerText, out var result);
+												childNode.InnerText = result;
+											}
+
+											ReplaceStringList(dataEvent["GeneratedItemArtifactNames"], json, basicKey + "GeneratedItemArtifactNames");
+										}
 									}
 								}
-
-								for (var i = 0; i < eventNodes.Count; i++)
+								else
 								{
-									var dataEvent = eventNodes[i];
-									if (dataEvent != null)
+									var titleMap = new Dictionary<string, string>();
+									var descMap = new Dictionary<string, string>();
+									var choiceMap = new Dictionary<string, string>();
+									var generatedMap = new Dictionary<string, string>();
+									var locationMap = new Dictionary<string, string>();
+									var generatedItemMap = new Dictionary<string, string>();
+
+									for (int i = 0; i < eventNodes.Count; i++)
 									{
-										XmlNode childNode = null;
+										var basicKey = $"{key}_{jsonKey}_{i}_";
+										if (json.GetOriginalAndTranslatedString(basicKey + "MessageTitle",
+											out var oriTitle, out var tranTitle))
+											titleMap[oriTitle] = tranTitle;
+										if (json.GetOriginalAndTranslatedString(basicKey + "Description",
+											out var oriDesc, out var tranDesc))
+											descMap[oriDesc] = tranDesc;
+										if (json.GetOriginalAndTranslatedString(basicKey + "ChoiceButtonText",
+											out var oriChoice, out var tranChoice))
+											choiceMap[oriChoice] = tranChoice;
+										if (json.GetOriginalAndTranslatedString(basicKey + "GeneratedItemName",
+											out var oriGenerated, out var tranGenerated))
+											generatedMap[oriGenerated] = tranGenerated;
+										if (json.GetOriginalAndTranslatedString(basicKey + "ActionLocationItemName",
+											out var oriLocation, out var tranLocation))
+											locationMap[oriLocation] = tranLocation;
+										for (int j = 0; j < 10000; j++)
+										{
+											if (json.GetOriginalAndTranslatedString(
+												basicKey + "GeneratedItemArtifactNames_" + j,
+												out var oriItem, out var tranItem))
+												generatedItemMap[oriItem] = tranItem;
+											else
+												break;
+										}
+									}
 
-										if ((childNode = dataEvent["MessageTitle"]) != null
-										    && titleMap.TryGetValue(childNode.InnerText, out var newTitle))
-											childNode.InnerText = newTitle;
+									for (var i = 0; i < eventNodes.Count; i++)
+									{
+										var dataEvent = eventNodes[i];
+										if (dataEvent != null)
+										{
+											XmlNode childNode = null;
 
-										if ((childNode = dataEvent["Description"]) != null
-										    && descMap.TryGetValue(UniteNewline(childNode.InnerText), out var newDesc))
-											childNode.InnerText = newDesc;
+											if ((childNode = dataEvent["MessageTitle"]) != null
+												&& titleMap.TryGetValue(childNode.InnerText.UniteNewline(), out var newTitle))
+												childNode.InnerText = newTitle;
 
-										if ((childNode = dataEvent["ChoiceButtonText"]) != null
-										    && choiceMap.TryGetValue(childNode.InnerText, out var newChoice))
-											childNode.InnerText = newChoice;
+											if ((childNode = dataEvent["Description"]) != null
+												&& descMap.TryGetValue(childNode.InnerText.UniteNewline(), out var newDesc))
+												childNode.InnerText = newDesc;
 
-										if ((childNode = dataEvent["GeneratedItemName"]) != null
-										    && generatedMap.TryGetValue(childNode.InnerText, out var newItem))
-											childNode.InnerText = newItem;
+											if ((childNode = dataEvent["ChoiceButtonText"]) != null
+												&& choiceMap.TryGetValue(childNode.InnerText.UniteNewline(), out var newChoice))
+												childNode.InnerText = newChoice;
 
-										if ((childNode = dataEvent["ActionLocationItemName"]) != null
-										    && locationMap.TryGetValue(childNode.InnerText, out var newLocation))
-											childNode.InnerText = newLocation;
+											if ((childNode = dataEvent["GeneratedItemName"]) != null
+												&& generatedMap.TryGetValue(childNode.InnerText.UniteNewline(), out var newItem))
+												childNode.InnerText = newItem;
 
-										ReplaceStringList(dataEvent["GeneratedItemArtifactNames"], generatedItemMap);
+											if ((childNode = dataEvent["ActionLocationItemName"]) != null
+												&& locationMap.TryGetValue(childNode.InnerText.UniteNewline(), out var newLocation))
+												childNode.InnerText = newLocation;
+
+											ReplaceStringList(dataEvent["GeneratedItemArtifactNames"], generatedItemMap);
+										}
 									}
 								}
 							}
@@ -994,7 +1113,58 @@ namespace DW2ChsPatch.TextProcess
 			}
 		}
 
-		private static void ReplaceStringList(XmlNode dataStringList, XmlNode textStringList, string strNodeName = "string")
+		private static void ReplaceStringList(XmlNode dataStringList, JsonText json, string jsonKeyPrefix)
+		{
+			if (dataStringList != null)
+			{
+				if (TranslationTextGenerator.Enable || JsonText.StrictMode)
+				{
+					var list = new List<string>();
+					foreach (XmlNode n in dataStringList.ChildNodes)
+					{
+						list.Add(n.InnerText);
+					}
+
+					json.GetStringArray(jsonKeyPrefix, list.ToArray(), out var results);
+
+					int i = 0;
+					foreach (XmlNode n in dataStringList.ChildNodes)
+					{
+						n.InnerText = results[i];
+						i++;
+					}
+				}
+				else
+				{
+					var map = new Dictionary<string, string>();
+					for (int i = 0; i < 10000; i++)
+					{
+						var key = $"{jsonKeyPrefix}_{i}";
+						if (json.GetOriginalAndTranslatedString(key, out var ori, out var tran))
+							map[ori] = tran;
+						else
+							break;
+					}
+
+					ReplaceStringList(dataStringList, map);
+				}
+			}
+		}
+
+		private static void ReplaceStringList(XmlNode dataStringList, Dictionary<string, string> translation)
+		{
+			if (dataStringList != null)
+			{
+				foreach (XmlNode n in dataStringList.ChildNodes)
+				{
+					var text = n.InnerText.UniteNewline();
+					if (translation.TryGetValue(text, out var newStr))
+						n.InnerText = newStr;
+				}
+			}
+		}
+
+		/*private static void ReplaceStringList(XmlNode dataStringList, XmlNode textStringList, string strNodeName = "string")
 		{
 			if (dataStringList != null && textStringList != null)
 			{
@@ -1007,38 +1177,7 @@ namespace DW2ChsPatch.TextProcess
 				}
 			}
 		}
-
-		private static void ReplaceStringList(XmlNode dataStringList, JsonText json, string jsonKeyPrefix)
-		{
-			if (dataStringList != null)
-			{
-				var map = new Dictionary<string, string>();
-				for (int i = 0; i < 10000; i++)
-				{
-					var key = $"{jsonKeyPrefix}_{i}";
-					if (json.GetOriginalAndTranslatedString(key, out var ori, out var tran))
-						map[ori] = tran;
-					else
-						break;
-				}
-
-				ReplaceStringList(dataStringList, map);
-			}
-		}
-
-		private static void ReplaceStringList(XmlNode dataStringList, Dictionary<string, string> translation)
-		{
-			if (dataStringList != null)
-			{
-				foreach (XmlNode n in dataStringList.ChildNodes)
-				{
-					var text = n.InnerText;
-					if (translation.TryGetValue(text, out var newStr))
-						n.InnerText = newStr;
-				}
-			}
-		}
-
+		 
 		private static void OnProcessOrbNode(XmlNode dataNode, XmlNode textNode)
 		{
 			var node1 = dataNode["RuinLocationDescriptions"];
@@ -1153,11 +1292,6 @@ namespace DW2ChsPatch.TextProcess
 			var dataTriggerActions = dataNode.SelectNodes("TriggerActions/GameEventAction");
 			var textTriggerActions = textNode.SelectNodes("TriggerActions/GameEventAction");
 			OnProcessGameEventNodeDo(dataTriggerActions, textTriggerActions);
-		}
-
-		private static string UniteNewline(string str)
-		{
-			return new StringBuilder(str).Replace("\\n", "\n").Replace("\r\n", "\n").Replace("\n", "\\n").ToString();
-		}
+		}*/
 	}
 }

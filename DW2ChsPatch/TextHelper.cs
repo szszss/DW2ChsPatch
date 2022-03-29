@@ -32,19 +32,11 @@ namespace DW2ChsPatch
 			return s1 + s3;
 		}
 
-		public static void CheckAndGetTranslatedString(string newOrigial, string oldOriginal, string oldTranslation,
-			out string newTranslation, out string context)
+		public static string UniteNewline(this string str)
 		{
-			if (newOrigial == oldOriginal)
-			{
-				newTranslation = oldTranslation;
-				context = null;
-			}
-			else
-			{
-				newTranslation = null;
-				context = $"旧原文: {oldOriginal}\n\n新原文: {newOrigial}\n\n旧译文: {oldTranslation}";
-			}
+			if (str.IndexOf('\n') >= 0)
+				return new StringBuilder(str).Replace("\\n", "\n").Replace("\r\n", "\n").Replace("\n", "\\n").ToString();
+			return str;
 		}
 	}
 }

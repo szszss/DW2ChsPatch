@@ -40,7 +40,7 @@ namespace DW2ChsPatch
 		    var optimizeOtherTex = false;
 
 		    var generateText = false;
-		    var generateTextFolder = "chs/NewTranslations";
+		    var generateTextFolder = "chs\\NewTranslations";
 
 			try
 		    {
@@ -114,7 +114,7 @@ namespace DW2ChsPatch
 
 					var generateTextFolderNode = doc.SelectSingleNode("//GenerateTranslationFolder");
 					if (generateTextFolderNode != null)
-						generateTextFolder = characterNameSeparatorNode.InnerText;
+						generateTextFolder = generateTextFolderNode.InnerText;
 				}
 			}
 		    catch (Exception e)
@@ -137,7 +137,9 @@ namespace DW2ChsPatch
 				{
 					JsonText.StoreOrderOfItems = true;
 					TranslationTextGenerator.Enable = true;
-					TranslationTextGenerator.OutputDir = Path.Combine(textPath, generateTextFolder);
+					TranslationTextGenerator.OutputDir = Path.Combine(
+						Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), 
+						generateTextFolder);
 					Directory.CreateDirectory(TranslationTextGenerator.OutputDir);
 				}
 				catch (Exception e)
@@ -186,13 +188,17 @@ namespace DW2ChsPatch
 					ReduceMeshPatch.Patch(harmony);
 				if (optimizeShipTex || optimizeOtherTex)
 					ReduceStreamingTexturePatch.Patch(harmony, optimizeShipTex, optimizeOtherTex);
+
+				if (TranslationTextGenerator.Enable)
+					TranslationTextGenerator.Patch(harmony);
+
 			}
 			catch (Exception e)
 			{
 				var sb = new StringBuilder("汉化补丁在注入文本时发生了一个错误，");
 				sb.AppendLine($"错误信息为{e.Message}");
 				sb.AppendLine("这可能是由于补丁版本与游戏不符导致（比如在游戏更新后）。");
-				MessageBox.Show(sb.ToString(), "汉化补丁错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+				//MessageBox.Show(sb.ToString(), "汉化补丁错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
 				throw;
 			}
 	    }

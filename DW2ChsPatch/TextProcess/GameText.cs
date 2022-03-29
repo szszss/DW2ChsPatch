@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using DW2ChsPatch.Feature;
 using HarmonyLib;
@@ -13,6 +15,10 @@ namespace DW2ChsPatch.TextProcess
 
 		private static string _dir;
 
+		private static JsonText _json;
+
+		private static Dictionary<string, JsonText> _dialogJson = new Dictionary<string, JsonText>();
+
 		private static bool _chineseCCS;
 
 		public static void Patch(Harmony harmony, string textDir, bool chineseComponentCategoryShort)
@@ -20,32 +26,59 @@ namespace DW2ChsPatch.TextProcess
 			_dir = textDir;
 			_chineseCCS = chineseComponentCategoryShort;
 
+			_json = JsonText.CreateOrGetJsonText(FILENAME, Path.Combine(_dir, FILENAME));
+
 			harmony.Patch(AccessTools.Method("DistantWorlds.Types.TextResolver:LoadText", new[] { typeof(string) }),
-				null, new HarmonyMethod(typeof(GameText), nameof(GameTextPostfix)));
+				null, new HarmonyMethod(typeof(GameText), nameof(GameTextPostfix)),
+				new HarmonyMethod(typeof(GameText), nameof(GameTextTranspiler)));
 			harmony.Patch(AccessTools.Method("DistantWorlds.Types.DialogSystem:LoadFile", new[] { typeof(string) }),
 				new HarmonyMethod(typeof(GameText), nameof(DialogPrefix)),
-				new HarmonyMethod(typeof(GameText), nameof(DialogPostfix)));
+				null,
+				new HarmonyMethod(typeof(GameText), nameof(DialogTranspiler)));
+		}
+
+		private static IEnumerable<CodeInstruction> GameTextTranspiler(IEnumerable<CodeInstruction> instructions)
+		{
+			foreach (var instruction in instructions)
+			{
+				if (instruction.opcode == OpCodes.Callvirt &&
+				    instruction.operand is MethodInfo method &&
+				    method.Name.Contains("Add"))
+				{
+					instruction.opcode = OpCodes.Call;
+					instruction.operand = AccessTools.Method(typeof(GameText), nameof(OnAddGameText));
+				}
+				yield return instruction;
+			}
+		}
+
+		public static void OnAddGameText(Dictionary<string, string> texts, string key, string text)
+		{
+			if (_json != null)
+			{
+				_json.GetString(key, text, out var result);
+				texts[key] = result;
+			}
+			else
+			{
+				texts[key] = text;
+			}
 		}
 
 		public static void GameTextPostfix()
 		{
-			var file = Path.Combine(_dir, FILENAME);
+			//var file = Path.Combine(_dir, FILENAME);
 			var texts = AccessTools.Field(
 				AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
 				"_Text").GetValue(null) as Dictionary<string, string>;
 
-			if (texts != null && File.Exists(file))
+			if (texts != null)
 			{
-				var json = new JsonText(file);
-				foreach (var item in json)
-				{
-					if (!string.IsNullOrWhiteSpace(item.Key) && !string.IsNullOrEmpty(item.Translation))
-						texts[item.Key] = item.Translation;
-				}
-
 				if (_chineseCCS)
 					TranslateComponentCategoryAbbr(texts);
 			}
+
+			MainClass.PostLoadFix();
 		}
 
 		public static void DialogPrefix(ref string __0)
@@ -57,16 +90,51 @@ namespace DW2ChsPatch.TextProcess
 				if (!string.IsNullOrEmpty(raceName))
 					__0 = $"dialog/{raceName}.txt";
 			}
+
+			var outputName = Path.ChangeExtension(__0, "json");
+			var json = JsonText.CreateOrGetJsonText(outputName, Path.Combine(_dir, outputName));
+			_dialogJson[__0] = json;
 		}
 
-		public static void DialogPostfix(ref Dictionary<string, string> __result, string __0)
+		private static IEnumerable<CodeInstruction> DialogTranspiler(IEnumerable<CodeInstruction> instructions)
+		{
+			foreach (var instruction in instructions)
+			{
+				if (instruction.opcode == OpCodes.Callvirt &&
+				    instruction.operand is MethodInfo method &&
+				    method.Name.Contains("Add"))
+				{
+					yield return new CodeInstruction(OpCodes.Ldarg_0);
+					yield return new CodeInstruction(OpCodes.Call,
+						AccessTools.Method(typeof(GameText), nameof(OnAddDialogText)));
+					continue;
+				}
+				yield return instruction;
+			}
+		}
+
+		public static void OnAddDialogText(Dictionary<string, string> texts, string key, string text, string path)
+		{
+			_dialogJson.TryGetValue(path, out var json);
+			if (json != null)
+			{
+				json.GetString(key, text, out var result);
+				texts[key] = result;
+			}
+			else
+			{
+				texts[key] = text;
+			}
+		}
+
+		/*public static void DialogPostfix(ref Dictionary<string, string> __result, string __0)
 		{
 			if (__result != null)
 			{
 				var file = Path.Combine(_dir, __0);
-				if (File.Exists(file))
+				var json = JsonText.CreateOrGetJsonText(__0, file);
+				if (json != null)
 				{
-					var json = new JsonText(file);
 					foreach (var item in json)
 					{
 						if (!string.IsNullOrWhiteSpace(item.Key) && !string.IsNullOrEmpty(item.Translation))
@@ -74,10 +142,9 @@ namespace DW2ChsPatch.TextProcess
 					}
 				}
 			}
-			MainClass.PostLoadFix();
-		}
+		}*/
 
-		public static IEnumerable<Tuple<string, string>> ReadTextIntoLines(string filepath)
+		/*public static IEnumerable<Tuple<string, string>> ReadTextIntoLines(string filepath)
 		{
 			if (File.Exists(filepath))
 			{
@@ -158,7 +225,7 @@ namespace DW2ChsPatch.TextProcess
 			}
 
 			gameTextJson.ExportToFile(pathOutput);
-		}
+		}*/
 
 		private static void TranslateComponentCategoryAbbr(Dictionary<string, string> texts)
 		{
