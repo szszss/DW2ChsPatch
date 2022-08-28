@@ -21,7 +21,7 @@ namespace DW2ChsPatch
 
 	    //private static int _forceCoreAmount = -1;
 
-	    public void Init()
+	    public static void Init()
 	    {
 		    var textPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "chs\\");
 		    var dataPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "data\\");
