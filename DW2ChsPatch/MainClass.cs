@@ -17,11 +17,17 @@ namespace DW2ChsPatch
 {
     public class MainClass
     {
+	    internal static XmlDocument HardcodedTextDoc;
+
+	    //private static int _forceCoreAmount = -1;
+
 	    public void Init()
 	    {
 		    var textPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "chs\\");
+		    var dataPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "data\\");
 
 		    var configPath = Path.Combine(textPath, "Patch.config");
+		    var hardcodedTextPath = Path.Combine(textPath, "Hardcoded.config");
 		    var skipCheck = false;
 		    var enableTextBoxPaste = false;
 		    var fixChineseTextWrap = false;
@@ -31,6 +37,7 @@ namespace DW2ChsPatch
 		    var chineseRandomShipName = false;
 		    var chineseOrdinalNumber = false;
 		    var chineseComponentCategoryShort = false;
+		    var systemNamingStyle = 0;
 		    var removeStarPostfix = false;
 			var characterNameSeparator = " ";
 		    var postfixForRandomShipName = "";
@@ -39,7 +46,7 @@ namespace DW2ChsPatch
 		    var optimizeShipTex = false;
 		    var optimizeOtherTex = false;
 
-		    var generateText = false;
+			var generateText = false;
 		    var generateTextFolder = "chs\\NewTranslations";
 
 			try
@@ -83,6 +90,10 @@ namespace DW2ChsPatch
 					var chineseComponentCategoryShortNode = doc.SelectSingleNode("//EnableChineseOrdinalNumber");
 					chineseComponentCategoryShort = chineseComponentCategoryShortNode?.InnerText.Equals(
 						"true", StringComparison.OrdinalIgnoreCase) == true;
+
+					var systemNamingStyleNode = doc.SelectSingleNode("//SystemNamingStyle");
+					if (systemNamingStyleNode != null && int.TryParse(systemNamingStyleNode.InnerText, out var systemNamingStyleValue))
+						systemNamingStyle = Math.Max(Math.Min(systemNamingStyleValue, 1), 0);
 
 					var removeStarPostfixNode = doc.SelectSingleNode("//RemoveStarNamePostfix");
 					removeStarPostfix = removeStarPostfixNode?.InnerText.Equals(
@@ -156,13 +167,26 @@ namespace DW2ChsPatch
 
 			try
 			{
+				if (File.Exists(hardcodedTextPath))
+				{
+					HardcodedTextDoc = new XmlDocument();
+					HardcodedTextDoc.Load(hardcodedTextPath);
+				}
+			}
+			catch (Exception)
+			{
+				// ignored
+			}
+
+			try
+			{
 				var harmony = new Harmony("DW2ChsPatch");
 				FontPatch.Patch(harmony);
 				GameText.Patch(harmony, textPath, chineseComponentCategoryShort);
 				XmlText.Patch(harmony, textPath);
-				GalactopediaText.Patch(harmony, textPath);
+				GalactopediaText.Patch(harmony, textPath, dataPath);
 				HintText.Patch(harmony, textPath);
-				SystemNameText.Patch(harmony, textPath);
+				SystemNameText.Patch(harmony, textPath, systemNamingStyle);
 
 				XenkoFix.Patch(harmony, fontTexSize);
 				RacePatch.Patch(harmony, skipCheck);

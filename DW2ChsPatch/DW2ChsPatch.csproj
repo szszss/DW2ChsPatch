@@ -79,6 +79,9 @@
     <Compile Include="TextProcess\XmlText.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Hardcoded.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="packages.config" />
     <None Include="Patch.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

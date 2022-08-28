@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Xml;
 using HarmonyLib;
 
 namespace DW2ChsPatch.TextProcess
@@ -43,6 +44,19 @@ namespace DW2ChsPatch.TextProcess
 					{
 						if (translationTable.TryGetValue(hints[i], out var newStr))
 							hints[i] = newStr;
+					}
+				}
+			}
+
+			if (MainClass.HardcodedTextDoc != null && hints != null)
+			{
+				var extraHintNodes = MainClass.HardcodedTextDoc.SelectNodes("//ExtraHint");
+				if (extraHintNodes != null)
+				{
+					foreach (XmlNode node in extraHintNodes)
+					{
+						if (!string.IsNullOrEmpty(node.InnerText))
+							hints.Add(node.InnerText);
 					}
 				}
 			}

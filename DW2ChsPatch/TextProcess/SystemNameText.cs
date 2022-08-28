@@ -7,12 +7,16 @@ namespace DW2ChsPatch.TextProcess
 	public static class SystemNameText
 	{
 		private const string FILENAME = "SystemNames.json";
+		private const string FILENAME_1 = "SystemNamesChs.txt";
 
 		private static string _dir;
 
-		public static void Patch(Harmony harmony, string textDir)
+		private static int _namingStyle;
+
+		public static void Patch(Harmony harmony, string textDir, int namingStyle)
 		{
 			_dir = textDir;
+			_namingStyle = namingStyle;
 
 			harmony.Patch(AccessTools.Method("DistantWorlds2.DWGame:Initialize"),
 				null, new HarmonyMethod(typeof(SystemNameText), nameof(Postfix)));
@@ -33,9 +37,24 @@ namespace DW2ChsPatch.TextProcess
 					names[i] = result;
 				}
 			}
+
+			if (names != null)
+			{
+				switch (_namingStyle)
+				{
+					case 1:
+						filepath = Path.Combine(_dir, FILENAME_1);
+						if (File.Exists(filepath))
+						{
+							names.Clear();
+							ReadTxtIntoList(filepath, names);
+						}
+						break;
+				}
+			}
 		}
 
-		/*private static void ReadTxtIntoList(string filepath, List<string> namelist)
+		private static void ReadTxtIntoList(string filepath, List<string> namelist)
 		{
 			if (File.Exists(filepath))
 			{
@@ -56,8 +75,8 @@ namespace DW2ChsPatch.TextProcess
 				}
 			}
 		}
-		 
-		public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
+
+		/*public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)
 		{
 			var json = new JsonText();
 			var originNames = new List<string>();

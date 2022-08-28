@@ -37,6 +37,7 @@ namespace DW2ChsPatch.TextProcess
 		{
 			if (Enable)
 			{
+				GalactopediaText.CreateGalactopediaEarly();
 				Enable = false;
 				Output();
 			}
@@ -96,12 +97,13 @@ namespace DW2ChsPatch.TextProcess
 					if (item.Status == JsonText.TextPresent.Unused)
 					{
 						RecordRemovedItem(file, item.Key, item.Original, item.Translation);
-						item.Stage = (short) Math.Min((int)item.Stage, 1);
+						item.Stage = (short) -1;
 						item.Context = $"于{version}删除";
 					}
 				}
 
-				json.ExportToFile(Path.Combine(OutputDir, file));
+				if (json.Count > 0)
+					json.ExportToFile(Path.Combine(OutputDir, file));
 			}
 
 			var sb = new StringBuilder();
@@ -172,7 +174,8 @@ namespace DW2ChsPatch.TextProcess
 				}
 				else
 				{
-					unchangedList.Add(file);
+					if (_jsons.TryGetValue(file, out var json) && json.Count > 0)
+						unchangedList.Add(file);
 				}
 			}
 

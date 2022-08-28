@@ -15,6 +15,8 @@ namespace DW2ChsPatch.TextProcess
 	{
 		private static string _dir;
 
+		private static string _dataDir;
+
 		private static MethodInfo _methodCreateGalactopediaTopic;
 
 		private static ConstructorInfo _constructorGalactopediaTopic;
@@ -23,9 +25,11 @@ namespace DW2ChsPatch.TextProcess
 
 		private static Type _typeGalactopediaCategory;
 
-		public static void Patch(Harmony harmony, string textDir)
+		public static void Patch(Harmony harmony, string textDir, string dataDir)
 		{
 			_dir = textDir;
+
+			_dataDir = dataDir;
 
 			_methodCreateGalactopediaTopic =
 				AccessTools.Method(typeof(GalactopediaText), nameof(CreateGalactopediaTopic));
@@ -93,21 +97,64 @@ namespace DW2ChsPatch.TextProcess
 			if (category == 1) // GameConcepts
 			{
 				var filename = $"Galactopedia\\GameConcepts\\{title}.json";
-				var filepath = $"chs\\{filename}";
+				var filepath = $"{_dir}\\{filename}";
 				ReadTranslatedGalactopedia(filename, filepath, ref title, ref text);
 			}
 			else if (category == 2) // GameScreens
 			{
 				var filename = $"Galactopedia\\GameScreens\\{title}.json";
-				var filepath = $"chs\\{filename}";
+				var filepath = $"{_dir}\\{filename}";
 				ReadTranslatedGalactopedia(filename, filepath, ref title, ref text);
 			}
 
+			text = text.ToWindowsNewline();
 			var typedCategory = Enum.GetValues(_typeGalactopediaCategory).GetValue(category);
 			return _constructorGalactopediaTopic.Invoke(new[]
 			{
 				galactopediaTopicId, title, text, typedCategory, relatedItem, isCategoryHeading
 			});
+		}
+
+		public static void CreateGalactopediaEarly()
+		{
+			var files = Directory.EnumerateFiles(Path.Combine(_dataDir, "Galactopedia\\"), "*.txt",
+				SearchOption.AllDirectories);
+			foreach (var file in files)
+			{
+				if (file.EndsWith("DOC.txt"))
+					continue;
+				ReadGalactopediaTxt(file, out var title, out var text, Encoding.GetEncoding(1252));
+				var filename = GetRelativePath(file, _dataDir);
+				filename = Path.ChangeExtension(filename, "json");
+				ReadTranslatedGalactopedia(filename, Path.Combine(_dir, filename), ref title, ref text);
+			}
+		}
+
+		private static bool ReadGalactopediaTxt(string path, out string title, out string text, Encoding encoding)
+		{
+			title = null;
+			text = null;
+			if (File.Exists(path))
+			{
+				title = Path.GetFileNameWithoutExtension(path);
+				var content = File.ReadAllText(path, encoding);
+				text = content;
+				return true;
+			}
+
+			return false;
+		}
+
+		private static string GetRelativePath(string filespec, string folder)
+		{
+			Uri pathUri = new Uri(filespec);
+			// Folders must end in a slash
+			if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString()))
+			{
+				folder += Path.DirectorySeparatorChar;
+			}
+			Uri folderUri = new Uri(folder);
+			return Uri.UnescapeDataString(folderUri.MakeRelativeUri(pathUri).ToString().Replace('/', Path.DirectorySeparatorChar));
 		}
 	}
 }

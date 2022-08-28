@@ -22,6 +22,11 @@ namespace DW2ChsPatch.TextProcess
 
 		private JsonTextItem _lastTouchedItem = null;
 
+		public int Count
+		{
+			get => _items.Count;
+		}
+
 		public JsonText()
 		{
 
@@ -221,6 +226,11 @@ namespace DW2ChsPatch.TextProcess
 			settings.Formatting = Formatting.Indented;
 
 			JsonTextItem[] array = StoreOrderOfItems ? _itemOrder.ToArray() : _items.Values.ToArray();
+			foreach (var item in array)
+			{
+				item.Original = item.Original?.Replace("\n", "\\n");
+				item.Translation = item.Translation?.Replace("\n", "\\n");
+			}
 			var str = JsonConvert.SerializeObject(array, settings).Replace("\\r\\n", "\\n");
 			Directory.CreateDirectory(Path.GetDirectoryName(filepath));
 			File.WriteAllText(filepath, str, Encoding.UTF8);

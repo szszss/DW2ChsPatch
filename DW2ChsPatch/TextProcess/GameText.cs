@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
+using System.Xml;
 using DW2ChsPatch.Feature;
 using HarmonyLib;
 
@@ -57,7 +58,7 @@ namespace DW2ChsPatch.TextProcess
 			if (_json != null)
 			{
 				_json.GetString(key, text, out var result);
-				texts[key] = result;
+				texts[key] = result.ToWindowsNewline();
 			}
 			else
 			{
@@ -78,6 +79,22 @@ namespace DW2ChsPatch.TextProcess
 					TranslateComponentCategoryAbbr(texts);
 			}
 
+			if (MainClass.HardcodedTextDoc != null && texts != null)
+			{
+				var extraTextNodes = MainClass.HardcodedTextDoc.SelectNodes("//ExtraGameText");
+				if (extraTextNodes != null)
+				{
+					foreach (XmlNode node in extraTextNodes)
+					{
+						var keyNode = node.Attributes["Key"];
+						if (keyNode != null 
+						    && !string.IsNullOrWhiteSpace(keyNode.Value)
+						    && !string.IsNullOrEmpty(node.InnerText))
+							texts[keyNode.Value] = node.InnerText.UniteNewline().ToWindowsNewline();
+					}
+				}
+			}
+
 			MainClass.PostLoadFix();
 		}
 
@@ -88,7 +105,10 @@ namespace DW2ChsPatch.TextProcess
 				var raceName = Path.GetFileNameWithoutExtension(__0);
 				raceName = RacePatch.GetRaceOriginalName(raceName);
 				if (!string.IsNullOrEmpty(raceName))
+				{
+					raceName = raceName.ToLower();
 					__0 = $"dialog/{raceName}.txt";
+				}
 			}
 
 			var outputName = Path.ChangeExtension(__0, "json");
@@ -119,7 +139,7 @@ namespace DW2ChsPatch.TextProcess
 			if (json != null)
 			{
 				json.GetString(key, text, out var result);
-				texts[key] = result;
+				texts[key] = result.ToWindowsNewline();
 			}
 			else
 			{

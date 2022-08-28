@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System;
+using System.Text;
 
 namespace DW2ChsPatch
 {
@@ -34,8 +35,15 @@ namespace DW2ChsPatch
 
 		public static string UniteNewline(this string str)
 		{
-			if (str.IndexOf('\n') >= 0)
+			if (str != null && str.IndexOf('\n') >= 0)
 				return new StringBuilder(str).Replace("\\n", "\n").Replace("\r\n", "\n").Replace("\n", "\\n").ToString();
+			return str;
+		}
+
+		public static string ToWindowsNewline(this string str)
+		{
+			if (str != null && str.IndexOf('\\') >= 0)
+				return str.Replace("\\n", Environment.NewLine);
 			return str;
 		}
 	}
