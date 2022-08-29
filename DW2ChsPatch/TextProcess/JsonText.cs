@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Unicode;
 
 namespace DW2ChsPatch.TextProcess
 {
@@ -235,8 +237,12 @@ namespace DW2ChsPatch.TextProcess
 				item.Translation = item.Translation?.Replace("\n", "\\n");
 			}
 
+			var setting = new TextEncoderSettings();
+			setting.AllowRange(UnicodeRanges.All);
+
 			var str = JsonSerializer.Serialize(array, new JsonSerializerOptions()
 			{
+				Encoder = JavaScriptEncoder.Create(setting),
 				DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
 				WriteIndented = true
 			}).Replace("\\r\\n", "\\n");

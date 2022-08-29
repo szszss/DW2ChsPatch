@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml;
@@ -182,6 +183,7 @@ namespace DW2ChsPatch
 			try
 			{
 				var harmony = new Harmony("DW2ChsPatch");
+				SetupFix.Patch(harmony, Thread.CurrentThread);
 				FontPatch.Patch(harmony);
 				GameText.Patch(harmony, textPath, chineseComponentCategoryShort);
 				XmlText.Patch(harmony, textPath);

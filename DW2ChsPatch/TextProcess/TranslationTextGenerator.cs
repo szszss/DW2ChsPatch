@@ -37,6 +37,7 @@ namespace DW2ChsPatch.TextProcess
 		{
 			if (Enable)
 			{
+				Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 				GalactopediaText.CreateGalactopediaEarly();
 				Enable = false;
 				Output();
@@ -83,7 +84,7 @@ namespace DW2ChsPatch.TextProcess
 
 		public static void Output()
 		{
-			var versionMethod = AccessTools.Field("DistantWorlds2.DWGame:Version");
+			var versionMethod = AccessTools.Property("DistantWorlds2.DWGame:Version");
 			var version = versionMethod != null
 				? versionMethod.GetValue(null) as string
 				: "未知";

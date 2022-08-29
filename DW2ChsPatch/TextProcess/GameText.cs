@@ -268,7 +268,7 @@ namespace DW2ChsPatch.TextProcess
 			{
 				foreach (XmlNode node in nodes)
 				{
-					var attr = node.Attributes?["key"];
+					var attr = node.Attributes?["Key"];
 					if (attr != null)
 					{
 						texts[$"ComponentCategory {attr.Value} Short"] = node.InnerText;
