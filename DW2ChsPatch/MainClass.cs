@@ -190,6 +190,7 @@ namespace DW2ChsPatch
 				GalactopediaText.Patch(harmony, textPath, dataPath);
 				HintText.Patch(harmony, textPath);
 				SystemNameText.Patch(harmony, textPath, systemNamingStyle);
+				TourFix.Patch(harmony);
 
 				XenkoFix.Patch(harmony, fontTexSize);
 				RacePatch.Patch(harmony, skipCheck);

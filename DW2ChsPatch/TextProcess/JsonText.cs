@@ -242,7 +242,7 @@ namespace DW2ChsPatch.TextProcess
 
 			var str = JsonSerializer.Serialize(array, new JsonSerializerOptions()
 			{
-				Encoder = JavaScriptEncoder.Create(setting),
+				Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 				DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
 				WriteIndented = true
 			}).Replace("\\r\\n", "\\n");
