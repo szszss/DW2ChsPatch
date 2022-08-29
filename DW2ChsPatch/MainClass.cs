@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -48,7 +49,7 @@ namespace DW2ChsPatch
 
 			var generateText = false;
 		    var generateTextFolder = "chs\\NewTranslations";
-
+			
 			try
 		    {
 			    if (File.Exists(configPath))
@@ -215,7 +216,6 @@ namespace DW2ChsPatch
 
 				if (TranslationTextGenerator.Enable)
 					TranslationTextGenerator.Patch(harmony);
-
 			}
 			catch (Exception e)
 			{
@@ -229,7 +229,7 @@ namespace DW2ChsPatch
 
 	    public static void PostLoadFix()
 	    {
-		    var getTextMethod = AccessTools.Method("DistantWorlds.Types.TextResolver:GetText");
+			var getTextMethod = AccessTools.Method("DistantWorlds.Types.TextResolver:GetText");
 		    if (getTextMethod != null)
 		    {
 			    try

@@ -4,7 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DW2ChsPatch.TextProcess
 {
@@ -193,7 +194,7 @@ namespace DW2ChsPatch.TextProcess
 				return;
 
 			var str = File.ReadAllText(filepath, Encoding.UTF8);
-			var array = JsonConvert.DeserializeObject<JsonTextItem[]>(str);
+			var array = JsonSerializer.Deserialize<JsonTextItem[]>(str);
 
 			if (array?.Length > 0)
 			{
@@ -221,9 +222,11 @@ namespace DW2ChsPatch.TextProcess
 
 		public void ExportToFile(string filepath)
 		{
+			/*
 			JsonSerializerSettings settings = new JsonSerializerSettings();
 			settings.NullValueHandling = NullValueHandling.Ignore;
 			settings.Formatting = Formatting.Indented;
+			*/
 
 			JsonTextItem[] array = StoreOrderOfItems ? _itemOrder.ToArray() : _items.Values.ToArray();
 			foreach (var item in array)
@@ -231,7 +234,12 @@ namespace DW2ChsPatch.TextProcess
 				item.Original = item.Original?.Replace("\n", "\\n");
 				item.Translation = item.Translation?.Replace("\n", "\\n");
 			}
-			var str = JsonConvert.SerializeObject(array, settings).Replace("\\r\\n", "\\n");
+
+			var str = JsonSerializer.Serialize(array, new JsonSerializerOptions()
+			{
+				DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+				WriteIndented = true
+			}).Replace("\\r\\n", "\\n");
 			Directory.CreateDirectory(Path.GetDirectoryName(filepath));
 			File.WriteAllText(filepath, str, Encoding.UTF8);
 		}
@@ -277,19 +285,19 @@ namespace DW2ChsPatch.TextProcess
 
 		public class JsonTextItem
 		{
-			[JsonProperty("key")]
-			public string Key { private set; get; }
+			[JsonPropertyName("key")]
+			public string Key { set; get; }
 
-			[JsonProperty("original")]
+			[JsonPropertyName("original")]
 			public string Original { set; get; }
 
-			[JsonProperty("translation")]
+			[JsonPropertyName("translation")]
 			public string Translation { set; get; }
 
-			[JsonProperty("context")]
+			[JsonPropertyName("context")]
 			public string Context { set; get; }
 
-			[JsonProperty("stage")]
+			[JsonPropertyName("stage")]
 			public short Stage { set; get; }
 
 			[JsonIgnore]

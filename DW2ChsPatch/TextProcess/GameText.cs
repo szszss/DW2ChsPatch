@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
@@ -20,6 +21,8 @@ namespace DW2ChsPatch.TextProcess
 
 		private static Dictionary<string, JsonText> _dialogJson = new Dictionary<string, JsonText>();
 
+		private static Dictionary<string, string> _texts;
+
 		private static bool _chineseCCS;
 
 		public static void Patch(Harmony harmony, string textDir, bool chineseComponentCategoryShort)
@@ -29,16 +32,24 @@ namespace DW2ChsPatch.TextProcess
 
 			_json = JsonText.CreateOrGetJsonText(FILENAME, Path.Combine(_dir, FILENAME));
 
-			harmony.Patch(AccessTools.Method("DistantWorlds.Types.TextResolver:LoadText", new[] { typeof(string) }),
+			/*harmony.Patch(AccessTools.Method("DistantWorlds.Types.TextResolver:LoadText", new[] { typeof(string) }),
 				null, new HarmonyMethod(typeof(GameText), nameof(GameTextPostfix)),
-				new HarmonyMethod(typeof(GameText), nameof(GameTextTranspiler)));
+				new HarmonyMethod(typeof(GameText), nameof(GameTextTranspiler)));*/
+
+			harmony.Patch(AccessTools.Method("DistantWorlds2.DWGame:Initialize"),
+				null, new HarmonyMethod(typeof(GameText), nameof(GameTextPostfix)));
+
 			harmony.Patch(AccessTools.Method("DistantWorlds.Types.DialogSystem:LoadFile", new[] { typeof(string) }),
 				new HarmonyMethod(typeof(GameText), nameof(DialogPrefix)),
 				null,
 				new HarmonyMethod(typeof(GameText), nameof(DialogTranspiler)));
+
+			_texts = AccessTools.Field(
+				AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
+				"_Text").GetValue(null) as Dictionary<string, string>;
 		}
 
-		private static IEnumerable<CodeInstruction> GameTextTranspiler(IEnumerable<CodeInstruction> instructions)
+		/*private static IEnumerable<CodeInstruction> GameTextTranspiler(IEnumerable<CodeInstruction> instructions)
 		{
 			foreach (var instruction in instructions)
 			{
@@ -64,22 +75,25 @@ namespace DW2ChsPatch.TextProcess
 			{
 				texts[key] = text;
 			}
-		}
+		}*/
 
 		public static void GameTextPostfix()
 		{
 			//var file = Path.Combine(_dir, FILENAME);
-			var texts = AccessTools.Field(
-				AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
-				"_Text").GetValue(null) as Dictionary<string, string>;
 
-			if (texts != null)
+			if (_texts != null)
 			{
+				foreach (var (key, value) in _texts.ToArray())
+				{
+					_json.GetString(key, value, out var result);
+					_texts[key] = result;
+				}
+
 				if (_chineseCCS)
-					TranslateComponentCategoryAbbr(texts);
+					TranslateComponentCategoryAbbr(_texts);
 			}
 
-			if (MainClass.HardcodedTextDoc != null && texts != null)
+			if (MainClass.HardcodedTextDoc != null && _texts != null)
 			{
 				var extraTextNodes = MainClass.HardcodedTextDoc.SelectNodes("//ExtraGameText");
 				if (extraTextNodes != null)
@@ -90,7 +104,7 @@ namespace DW2ChsPatch.TextProcess
 						if (keyNode != null 
 						    && !string.IsNullOrWhiteSpace(keyNode.Value)
 						    && !string.IsNullOrEmpty(node.InnerText))
-							texts[keyNode.Value] = node.InnerText.UniteNewline().ToWindowsNewline();
+							_texts[keyNode.Value] = node.InnerText.UniteNewline().ToWindowsNewline();
 					}
 				}
 			}
@@ -249,58 +263,18 @@ namespace DW2ChsPatch.TextProcess
 
 		private static void TranslateComponentCategoryAbbr(Dictionary<string, string> texts)
 		{
-			texts["ComponentCategory AreaShieldRecharge Short"] = "盾充";
-			texts["ComponentCategory Armor Short"] = "装甲";
-			texts["ComponentCategory AssaultPod Short"] = "登舰";
-			texts["ComponentCategory CargoBay Short"] = "货仓";
-			texts["ComponentCategory Colonization Short"] = "殖民";
-			texts["ComponentCategory CommandCenter Short"] = "舰桥";
-			texts["ComponentCategory CommerceCenter Short"] = "商业";
-			texts["ComponentCategory Construction Short"] = "建造";
-			texts["ComponentCategory Countermeasures Short"] = "闪避";
-			texts["ComponentCategory CountermeasuresFleet Short"] = "群闪";
-			texts["ComponentCategory CrewQuarters Short"] = "宿舍";
-			texts["ComponentCategory DamageControl Short"] = "损管";
-			texts["ComponentCategory DockingBay Short"] = "空港";
-			texts["ComponentCategory EnergyCollector Short"] = "辅能";
-			texts["ComponentCategory EnergyToFuel Short"] = "造油";
-			texts["ComponentCategory Engine Short"] = "推进";
-			texts["ComponentCategory EngineVectoring Short"] = "转向";
-			texts["ComponentCategory Extractor Short"] = "采矿";
-			texts["ComponentCategory RemoteFuelTransfer Short"] = "输油";
-			texts["ComponentCategory FighterBay Short"] = "战机";
-			texts["ComponentCategory FuelStorage Short"] = "油箱";
-			texts["ComponentCategory HyperBlock Short"] = "阻跳";
-			texts["ComponentCategory HyperDeny Short"] = "反跳";
-			texts["ComponentCategory HyperDrive Short"] = "跃迁";
-			texts["ComponentCategory IonDefense Short"] = "防瘫";
-			texts["ComponentCategory MedicalCenter Short"] = "医疗";
-			texts["ComponentCategory PassengerCompartment Short"] = "载客";
-			texts["ComponentCategory Reactor Short"] = "能量";
-			texts["ComponentCategory RecreationCenter Short"] = "娱乐";
-			texts["ComponentCategory ResearchLab Short"] = "科研";
-			texts["ComponentCategory ScannerEmpireMasking Short"] = "匿名";
-			texts["ComponentCategory ScannerExploration Short"] = "探索";
-			texts["ComponentCategory ScannerExplorationSurvey Short"] = "勘探";
-			texts["ComponentCategory ScannerJammer Short"] = "干扰";
-			texts["ComponentCategory ScannerJumpTracking Short"] = "跳感";
-			texts["ComponentCategory ScannerLongRange Short"] = "远感";
-			texts["ComponentCategory ScannerShortRange Short"] = "近感";
-			texts["ComponentCategory ScannerRoleMasking Short"] = "伪装";
-			texts["ComponentCategory ScannerTrace Short"] = "追踪";
-			texts["ComponentCategory Shields Short"] = "护盾";
-			texts["ComponentCategory ShieldEnhancement Short"] = "盾强";
-			texts["ComponentCategory Stealth Short"] = "隐形";
-			texts["ComponentCategory TargetingComputer Short"] = "命中";
-			texts["ComponentCategory TargetingComputerFleet Short"] = "群中";
-			texts["ComponentCategory TractorBeam Short"] = "牵引";
-			texts["ComponentCategory TroopCompartment Short"] = "陆军";
-			texts["ComponentCategory WeaponArea Short"] = "范围";
-			texts["ComponentCategory WeaponBombard Short"] = "轰炸";
-			texts["ComponentCategory WeaponCloseIn Short"] = "近程";
-			texts["ComponentCategory WeaponIntercept Short"] = "拦截";
-			texts["ComponentCategory WeaponIon Short"] = "瘫痪";
-			texts["ComponentCategory WeaponStandoff Short"] = "远程";
+			var nodes = MainClass.HardcodedTextDoc.SelectNodes("//ComponentCategoryAbbr");
+			if (nodes != null)
+			{
+				foreach (XmlNode node in nodes)
+				{
+					var attr = node.Attributes?["key"];
+					if (attr != null)
+					{
+						texts[$"ComponentCategory {attr.Value} Short"] = node.InnerText;
+					}
+				}
+			}
 		}
 	}
 }

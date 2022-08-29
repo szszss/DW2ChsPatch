@@ -26,16 +26,16 @@ namespace DW2ChsPatch.Optimization
 			bool optimizeShipTex,
 			bool optimizeOtherTex)
 		{
-			_storageProperty = AccessTools.Property("Xenko.Streaming.StreamableResource:Storage");
-			_urlProperty = AccessTools.Property("Xenko.Core.Streaming.ContentStorage:Url");
-			_totalMipLevelsProperty = AccessTools.Property("Xenko.Streaming.StreamingTexture:TotalMipLevels");
-			_totalWidthProperty = AccessTools.Property("Xenko.Streaming.StreamingTexture:TotalWidth");
-			_totalHeightProperty = AccessTools.Property("Xenko.Streaming.StreamingTexture:TotalHeight");
+			_storageProperty = AccessTools.Property("Stride.Streaming.StreamableResource:Storage");
+			_urlProperty = AccessTools.Property("Stride.Core.Streaming.ContentStorage:Url");
+			_totalMipLevelsProperty = AccessTools.Property("Stride.Streaming.StreamingTexture:TotalMipLevels");
+			_totalWidthProperty = AccessTools.Property("Stride.Streaming.StreamingTexture:TotalWidth");
+			_totalHeightProperty = AccessTools.Property("Stride.Streaming.StreamingTexture:TotalHeight");
 
 			_optimizeShipTex = optimizeShipTex;
 			_optimizeOtherTex = optimizeOtherTex;
 
-			harmony.Patch(AccessTools.Method("Xenko.Streaming.StreamingTexture:CalculateTargetResidency"),
+			harmony.Patch(AccessTools.Method("Stride.Streaming.StreamingTexture:CalculateTargetResidency"),
 				null, null,
 				new HarmonyMethod(typeof(ReduceStreamingTexturePatch), nameof(CalculateTargetResidencyTranspiler)));
 		}

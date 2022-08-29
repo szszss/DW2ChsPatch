@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DW2ChsPatch": {
+      "commandName": "Project",
+      "commandLineArgs": "--low-level-inject DW2ChsPatch.dll!DW2ChsPatch.MainClass.Init"
+    }
+  }
+}
