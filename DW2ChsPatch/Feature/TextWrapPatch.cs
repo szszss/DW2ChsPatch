@@ -57,7 +57,7 @@ namespace DW2ChsPatch.Feature
 					{
 						var parameters = method.GetParameters();
 						return method.Name.Contains("DrawStringDropShadowWordWrapWithSize") &&
-						       parameters.Length == 13 && parameters[10].ParameterType == typeof(int);
+						       parameters.Length == 14 && parameters[10].ParameterType == typeof(int);
 
 					}), null, null,
 				new HarmonyMethod(typeof(TextWrapPatch), nameof(TextWrapTranspiler)));

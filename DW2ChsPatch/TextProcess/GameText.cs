@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -21,7 +22,7 @@ namespace DW2ChsPatch.TextProcess
 
 		private static Dictionary<string, JsonText> _dialogJson = new Dictionary<string, JsonText>();
 
-		private static Dictionary<string, string> _texts;
+		private static FieldInfo _textsField;
 
 		private static bool _chineseCCS;
 
@@ -44,9 +45,9 @@ namespace DW2ChsPatch.TextProcess
 				null,
 				new HarmonyMethod(typeof(GameText), nameof(DialogTranspiler)));
 
-			_texts = AccessTools.Field(
+			_textsField = AccessTools.Field(
 				AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
-				"_Text").GetValue(null) as Dictionary<string, string>;
+				"_Text");//.GetValue(null) as ImmutableDictionary<string, string>;
 		}
 
 		/*private static IEnumerable<CodeInstruction> GameTextTranspiler(IEnumerable<CodeInstruction> instructions)
@@ -80,33 +81,37 @@ namespace DW2ChsPatch.TextProcess
 		public static void GameTextPostfix()
 		{
 			//var file = Path.Combine(_dir, FILENAME);
+			var oldTexts = _textsField?.GetValue(null) as ImmutableDictionary<string, string>;
 
-			if (_texts != null)
+			if (oldTexts != null)
 			{
-				foreach (var (key, value) in _texts.ToArray())
+				var newTexts = new Dictionary<string, string>();
+				foreach (var (key, value) in oldTexts.ToArray())
 				{
 					_json.GetString(key, value, out var result);
-					_texts[key] = result;
+					newTexts[key] = result;
 				}
 
 				if (_chineseCCS)
-					TranslateComponentCategoryAbbr(_texts);
-			}
+					TranslateComponentCategoryAbbr(newTexts);
 
-			if (MainClass.HardcodedTextDoc != null && _texts != null)
-			{
-				var extraTextNodes = MainClass.HardcodedTextDoc.SelectNodes("//ExtraGameText");
-				if (extraTextNodes != null)
+				if (MainClass.HardcodedTextDoc != null)
 				{
-					foreach (XmlNode node in extraTextNodes)
+					var extraTextNodes = MainClass.HardcodedTextDoc.SelectNodes("//ExtraGameText");
+					if (extraTextNodes != null)
 					{
-						var keyNode = node.Attributes["Key"];
-						if (keyNode != null 
-						    && !string.IsNullOrWhiteSpace(keyNode.Value)
-						    && !string.IsNullOrEmpty(node.InnerText))
-							_texts[keyNode.Value] = node.InnerText.UniteNewline().ToWindowsNewline();
+						foreach (XmlNode node in extraTextNodes)
+						{
+							var keyNode = node.Attributes["Key"];
+							if (keyNode != null
+							    && !string.IsNullOrWhiteSpace(keyNode.Value)
+							    && !string.IsNullOrEmpty(node.InnerText))
+								newTexts[keyNode.Value] = node.InnerText.UniteNewline().ToWindowsNewline();
+						}
 					}
 				}
+
+				_textsField.SetValue(null, ImmutableDictionary.CreateRange(newTexts));
 			}
 
 			MainClass.PostLoadFix();
