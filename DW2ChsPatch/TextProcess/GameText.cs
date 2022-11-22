@@ -89,7 +89,7 @@ namespace DW2ChsPatch.TextProcess
 				foreach (var (key, value) in oldTexts.ToArray())
 				{
 					_json.GetString(key, value, out var result);
-					newTexts[key] = result;
+					newTexts[key] = result.Replace("\\n", "\r\n");
 				}
 
 				if (_chineseCCS)
