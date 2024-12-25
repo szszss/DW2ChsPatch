@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
@@ -13,66 +15,18 @@ namespace DW2ChsPatch.TextProcess
 	{
 		private static string _dir;
 
-		private static Type _tourItemListType;
-
-		private static Type _colonyEventDefinitionListType;
-
-		private static Type _componentDefinitionListType;
-
-		private static Type _creatureTypeListType;
-
-		private static Type _governmentListType;
-
-		private static Type _orbTypeListType;
-
-		private static Type _planetaryFacilityDefinitionListType;
-
-		private static Type _artifactListType;
-
-		private static Type _raceListType;
-
-		private static Type _researchProjectDefinitionListType;
-
-		private static Type _resourceListType;
-
-		private static Type _shipHullListType;
-
-		private static Type _spaceItemDefinitionListType;
-
-		private static Type _troopDefinitionListType;
-
-		private static Type _fleetTemplateListType;
-
-		private static Type _armyTemplateListType;
-
-		private static Type _gameEventListType;
-
-		private static Type _locationEffectGroupDefinitionListType;
-
 		public static void Patch(Harmony harmony, string textDir)
 		{
 			_dir = textDir;
-			var loaderType = AccessTools.TypeByName("DistantWorlds.Types.XmlSerializationHelper`1");
-			_tourItemListType = AccessTools.TypeByName("DistantWorlds.Types.TourItemList");
-			_colonyEventDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.ColonyEventDefinitionList");
-			_componentDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.ComponentDefinitionList");
-			_creatureTypeListType = AccessTools.TypeByName("DistantWorlds.Types.CreatureTypeList");
-			_governmentListType = AccessTools.TypeByName("DistantWorlds.Types.GovernmentList");
-			_orbTypeListType = AccessTools.TypeByName("DistantWorlds.Types.OrbTypeList");
-			_planetaryFacilityDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.PlanetaryFacilityDefinitionList");
-			_artifactListType = AccessTools.TypeByName("DistantWorlds.Types.ArtifactList");
-			_raceListType = AccessTools.TypeByName("DistantWorlds.Types.RaceList");
-			_researchProjectDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.ResearchProjectDefinitionList");
-			_resourceListType = AccessTools.TypeByName("DistantWorlds.Types.ResourceList");
-			_shipHullListType = AccessTools.TypeByName("DistantWorlds.Types.ShipHullList");
-			_spaceItemDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.SpaceItemDefinitionList");
-			_troopDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.TroopDefinitionList");
-			_fleetTemplateListType = AccessTools.TypeByName("DistantWorlds.Types.FleetTemplateList");
-			_armyTemplateListType = AccessTools.TypeByName("DistantWorlds.Types.ArmyTemplateList");
-			_gameEventListType = AccessTools.TypeByName("DistantWorlds.Types.GameEventList");
-			_locationEffectGroupDefinitionListType = AccessTools.TypeByName("DistantWorlds.Types.LocationEffectGroupDefinitionList");
-			harmony.Patch(AccessTools.Method(loaderType.MakeGenericType(typeof(object)), "LoadFromStream", new []{typeof(Stream)}),
-				new HarmonyMethod(typeof(XmlText), nameof(LoadFromStreamPrefix)));
+			
+			harmony.Patch(AccessTools.Method("DistantWorlds.Types.Galaxy:LoadStaticBaseData"), null, null,
+				new HarmonyMethod(AccessTools.Method(typeof(XmlText), nameof(Transpiler))));
+
+			harmony.Patch(AccessTools.Method("DistantWorlds.Types.Galaxy:ReloadComponentsAndShipHulls"), null, null,
+				new HarmonyMethod(AccessTools.Method(typeof(XmlText), nameof(Transpiler))));
+
+			harmony.Patch(AccessTools.Method("DistantWorlds.Types.Galaxy:ReloadResearch"), null, null,
+				new HarmonyMethod(AccessTools.Method(typeof(XmlText), nameof(Transpiler))));
 		}
 
 		private static JsonText GetTextJson(string name)
@@ -659,15 +613,28 @@ namespace DW2ChsPatch.TextProcess
 			}
 		}*/
 
-		private static void LoadFromStreamPrefix(object __instance, ref Stream __0)
+		public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
 		{
-			var genericType = __instance.GetType().GenericTypeArguments[0];
+			foreach (var instruction in instructions)
+			{
+				if (instruction.opcode == OpCodes.Callvirt && instruction.operand is MethodInfo method &&
+				    method.Name == "LoadFromStream")
+				{
+					yield return new CodeInstruction(OpCodes.Ldstr, method.ReturnType.FullName);
+					yield return new CodeInstruction(OpCodes.Call,
+						AccessTools.Method(typeof(XmlText), nameof(LoadFromStreamPreprocess)));
+				}
+				yield return instruction;
+			}
+		}
 
-			if (genericType == _tourItemListType)
+		private static Stream LoadFromStreamPreprocess(Stream __0, string type)
+		{
+			if (type == "DistantWorlds.Types.TourItemList")
 			{
 				var json = GetTextJson("TourItems.json");
 				if (json == null)
-					return;
+					return __0;
 
 				var dataDoc = new XmlDocument();
 				dataDoc.Load(__0);
@@ -727,35 +694,35 @@ namespace DW2ChsPatch.TextProcess
 					indexOfTour++;
 				}
 				
-				__0 = XmlToStream(dataDoc);
+				return XmlToStream(dataDoc);
 			}
-			else if (genericType == _colonyEventDefinitionListType)
+			else if (type == "DistantWorlds.Types.ColonyEventDefinitionList")
 			{
-				__0 = ApplyJson("ColonyEventDefinitions.json", __0,
+				return ApplyJson("ColonyEventDefinitions.json", __0,
 					"ArrayOfColonyEventDefinition",
 					"ColonyEventDefinition",
 					"ColonyEventDefinitionId",
 					"Name", "Description");
 			}
-			else if (genericType == _componentDefinitionListType)
+			else if (type == "DistantWorlds.Types.ComponentDefinitionList")
 			{
-				__0 = ApplyJson("ComponentDefinitions.json", __0,
+				return ApplyJson("ComponentDefinitions.json", __0,
 					"ArrayOfComponentDefinition",
 					"ComponentDefinition",
 					"ComponentId",
 					"Name", "Description");
 			}
-			else if (genericType == _creatureTypeListType)
+			else if (type == "DistantWorlds.Types.CreatureTypeList")
 			{
-				__0 = ApplyJson("CreatureTypes.json", __0,
+				return ApplyJson("CreatureTypes.json", __0,
 					"ArrayOfCreatureType",
 					"CreatureType",
 					"CreatureTypeId",
 					"Name", "Description");
 			}
-			else if (genericType == _governmentListType)
+			else if (type == "DistantWorlds.Types.GovernmentList")
 			{
-				__0 = ApplyJson("Governments.json", __0,
+				return ApplyJson("Governments.json", __0,
 					"ArrayOfGovernment",
 					"Government",
 					"GovernmentId",
@@ -766,9 +733,9 @@ namespace DW2ChsPatch.TextProcess
 					},
 					"Name", "Description", "LeaderTitle", "CabinetTitle");
 			}
-			else if (genericType == _orbTypeListType)
+			else if (type == "DistantWorlds.Types.OrbTypeList")
 			{
-				__0 = ApplyJson("OrbTypes.json", __0,
+				return ApplyJson("OrbTypes.json", __0,
 					"ArrayOfOrbType",
 					"OrbType",
 					"OrbTypeId",
@@ -816,25 +783,25 @@ namespace DW2ChsPatch.TextProcess
 					},
 					"Name", "Description");
 			}
-			else if (genericType == _planetaryFacilityDefinitionListType)
+			else if (type == "DistantWorlds.Types.PlanetaryFacilityDefinitionList")
 			{
-				__0 = ApplyJson("PlanetaryFacilityDefinitions.json", __0,
+				return ApplyJson("PlanetaryFacilityDefinitions.json", __0,
 					"ArrayOfPlanetaryFacilityDefinition",
 					"PlanetaryFacilityDefinition",
 					"PlanetaryFacilityDefinitionId",
 					"Name");
 			}
-			else if (genericType == _artifactListType)
+			else if (type == "DistantWorlds.Types.ArtifactList")
 			{
-				__0 = ApplyJson("Artifacts.json", __0,
+				return ApplyJson("Artifacts.json", __0,
 					"ArrayOfArtifact",
 					"Artifact",
 					"ArtifactId",
 					"Name", "Description");
 			}
-			else if (genericType == _raceListType)
+			else if (type == "DistantWorlds.Types.RaceList")
 			{
-				__0 = ApplyJson("Races.json", __0,
+				return ApplyJson("Races.json", __0,
 					"ArrayOfRace",
 					"Race",
 					"RaceId",
@@ -863,9 +830,9 @@ namespace DW2ChsPatch.TextProcess
 						}
 					});
 			}
-			else if (genericType == _researchProjectDefinitionListType)
+			else if (type == "DistantWorlds.Types.ResearchProjectDefinitionList")
 			{
-				__0 = ApplyJson("ResearchProjectDefinitions.json", __0,
+				return ApplyJson("ResearchProjectDefinitions.json", __0,
 					"ArrayOfResearchProjectDefinition",
 					"ResearchProjectDefinition",
 					"ResearchProjectId",
@@ -911,57 +878,57 @@ namespace DW2ChsPatch.TextProcess
 					},
 					"Name", "Description"); // the Description is empty now
 			}
-			else if (genericType == _resourceListType)
+			else if (type == "DistantWorlds.Types.ResourceList")
 			{
-				__0 = ApplyJson("Resources.json", __0,
+				return ApplyJson("Resources.json", __0,
 					"ArrayOfResource",
 					"Resource",
 					"ResourceId",
 					"Name", "Description");
 			}
-			else if (genericType == _shipHullListType)
+			else if (type == "DistantWorlds.Types.ShipHullList")
 			{
-				__0 = ApplyJson("ShipHulls.json", __0,
+				return ApplyJson("ShipHulls.json", __0,
 					"ArrayOfShipHull",
 					"ShipHull",
 					"ShipHullId",
 					"Name");
 			}
-			else if (genericType == _spaceItemDefinitionListType)
+			else if (type == "DistantWorlds.Types.SpaceItemDefinitionList")
 			{
-				__0 = ApplyJson("SpaceItemDefinitions.json", __0,
+				return ApplyJson("SpaceItemDefinitions.json", __0,
 					"ArrayOfSpaceItemDefinition",
 					"SpaceItemDefinition",
 					"SpaceItemDefinitionId",
 					"Name", "Description"); // the Description is empty now
 			}
-			else if (genericType == _troopDefinitionListType)
+			else if (type == "DistantWorlds.Types.TroopDefinitionList")
 			{
-				__0 = ApplyJson("TroopDefinitions.json", __0,
+				return ApplyJson("TroopDefinitions.json", __0,
 					"ArrayOfTroopDefinition",
 					"TroopDefinition",
 					"TroopDefinitionId",
 					"Name");
 			}
-			else if (genericType == _fleetTemplateListType)
+			else if (type == "DistantWorlds.Types.FleetTemplateList")
 			{
-				__0 = ApplyJson("FleetTemplates.json", __0,
+				return ApplyJson("FleetTemplates.json", __0,
 					"ArrayOfFleetTemplate",
 					"FleetTemplate",
 					"FleetTemplateId",
 					"Name");
 			}
-			else if (genericType == _armyTemplateListType)
+			else if (type == "DistantWorlds.Types.ArmyTemplateList")
 			{
-				__0 = ApplyJson("ArmyTemplates.json", __0,
+				return ApplyJson("ArmyTemplates.json", __0,
 					"ArrayOfArmyTemplate",
 					"ArmyTemplate",
 					"ArmyTemplateId",
 					"Name");
 			}
-			else if (genericType == _gameEventListType)
+			else if (type == "DistantWorlds.Types.GameEventList")
 			{
-				__0 = ApplyJson("GameEvents.json", __0,
+				return ApplyJson("GameEvents.json", __0,
 					"ArrayOfGameEvent",
 					"GameEvent",
 					"Name",
@@ -1105,12 +1072,29 @@ namespace DW2ChsPatch.TextProcess
 								}
 							}
 						}
+
+						// Fix Shakturi DLC
+						var conditionNodes = node.SelectNodes("Conditions/GameEventCondition");
+						if (conditionNodes != null)
+						{
+							foreach (XmlNode conditionNode in conditionNodes)
+							{
+								var n = conditionNode.SelectSingleNode("VariableName");
+								if (n?.InnerText == "Shaktur Axis")
+								{
+									n.InnerText = ShakturiPatch.AllianceName_Axis;
+								}
+							}
+						}
 					},
 					"Title", "Description");
 			}
-			else if (genericType == _locationEffectGroupDefinitionListType)
-			{ // no present in game for now
+			else if (type == "DistantWorlds.Types.LocationEffectGroupDefinitionList")
+			{
+				return __0;
 			}
+
+			return __0;
 		}
 
 		private static void ReplaceStringList(XmlNode dataStringList, JsonText json, string jsonKeyPrefix)

@@ -11,11 +11,9 @@ namespace DW2ChsPatch.Feature
 {
 	public static class XenkoFix
 	{
-		private static ReaderWriterLockSlim _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
+		private static readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
 
 		private static int _fontTexSize;
-
-		private static IntPtr _freetypePtr = IntPtr.Zero;
 
 		public static void Patch(Harmony harmony, int fontTexSize)
 		{
@@ -33,39 +31,11 @@ namespace DW2ChsPatch.Feature
 				}),
 				null, null, new HarmonyMethod(typeof(XenkoFix), nameof(CallForEachGlyphTranspiler)));
 
-			harmony.Patch(AccessTools.Method("Stride.Core.NativeLibraryHelper:PreloadLibrary"),
-				new HarmonyMethod(typeof(XenkoFix), nameof(PreloadLibraryPrefix)));
-
 			harmony.Patch(AccessTools.Method("Stride.Graphics.Font.RuntimeRasterizedSpriteFont:GetGlyph"),
 				null, null, new HarmonyMethod(typeof(XenkoFix), nameof(GetGlyphTranspiler)));
 			
 			harmony.Patch(AccessTools.Method("Stride.Graphics.Font.FontSystem:Load"),
 				null, null, new HarmonyMethod(typeof(XenkoFix), nameof(LoadTranspiler)));
-		}
-
-		private static void PreloadLibraryPrefix(string __0)
-		{
-			if (__0 == "freetype")
-			{
-				if (_freetypePtr == IntPtr.Zero)
-				{
-					var type = AccessTools.TypeByName("Stride.Core.NativeLibraryHelper");
-					if (type != null)
-					{
-						var loadedLibField = AccessTools.Field(type, "LoadedLibraries");
-						if (loadedLibField != null)
-						{
-							var exeDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-							if (loadedLibField.GetValue(null) is Dictionary<string, IntPtr> loadedLib
-							    && NativeLibrary.TryLoad(Path.Combine(exeDir, "win-x64", "freetype.dll"), out var ptr))
-							{
-								_freetypePtr = ptr;
-								loadedLib["freetype"] = ptr;
-							}
-						}
-					}
-				}
-			}
 		}
 
 		private static IEnumerable<CodeInstruction> CallForEachGlyphTranspiler(IEnumerable<CodeInstruction> instructions)
@@ -116,16 +86,8 @@ namespace DW2ChsPatch.Feature
 			}
 		}
 
-		//private static Thread _currentThread = null;
-
 		public static void Lock()
 		{
-			/*var cur = Thread.CurrentThread;
-			if (_currentThread != null && cur != _currentThread)
-			{
-				Thread.MemoryBarrier();
-			}
-			_currentThread = cur;*/
 			_lock.EnterWriteLock();
 		}
 

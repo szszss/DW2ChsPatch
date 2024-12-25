@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +27,7 @@ namespace DW2ChsPatch
 	    public static void Init()
 	    {
 		    var textPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "chs\\");
-		    var dataPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "data\\");
+		    var dataPath = Path.Combine(AssemblyLoadContext.Default.Assemblies.First(a => a.GetName().Name == "DistantWorlds.Types").Location, "data\\");
 
 		    var configPath = Path.Combine(textPath, "Patch.config");
 		    var hardcodedTextPath = Path.Combine(textPath, "Hardcoded.config");
@@ -143,7 +144,7 @@ namespace DW2ChsPatch
 
 				MessageBox.Show(sb.ToString(), "配置文件错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
 		    }
-
+			
 			if (generateText)
 			{
 				try
@@ -184,6 +185,7 @@ namespace DW2ChsPatch
 			{
 				var harmony = new Harmony("DW2ChsPatch");
 				SetupFix.Patch(harmony, Thread.CurrentThread);
+				RacePatch.InitRace();
 				FontPatch.Patch(harmony);
 				GameText.Patch(harmony, textPath, chineseComponentCategoryShort);
 				XmlText.Patch(harmony, textPath);
@@ -194,6 +196,7 @@ namespace DW2ChsPatch
 
 				XenkoFix.Patch(harmony, fontTexSize);
 				RacePatch.Patch(harmony, skipCheck);
+				ShakturiPatch.Patch(harmony);
 				AmbiguousWordsFixPatch.Patch(harmony);
 				SituationDescriptionPatch.Patch(harmony);
 				GenerateRuinsPatch.Patch(harmony);
@@ -320,6 +323,46 @@ namespace DW2ChsPatch
 				{
 					// ignored
 				}
+
+			    try
+			    {
+				    var colonyEventDefinitionType = AccessTools.TypeByName("DistantWorlds.Types.ColonyEventDefinition");
+				    if (colonyEventDefinitionType != null)
+				    {
+					    var prop = AccessTools.PropertySetter(colonyEventDefinitionType, "Name");
+					    var field = AccessTools.Field(colonyEventDefinitionType, "LeaderChangeRebellion");
+					    if (field != null)
+						    prop.Invoke(field.GetValue(null), new object[]
+						    {
+							    (string) getTextMethod.Invoke(null, new object[] {"Disruption from Leader Change"})
+						    });
+
+					    field = AccessTools.Field(colonyEventDefinitionType, "InternalStabilizationMission");
+					    if (field != null)
+						    prop.Invoke(field.GetValue(null), new object[]
+						    {
+							    (string) getTextMethod.Invoke(null, new object[] {"Character Mission InternalStabilization"})
+						    });
+
+					    field = AccessTools.Field(colonyEventDefinitionType, "CharacterRivalry");
+					    if (field != null)
+						    prop.Invoke(field.GetValue(null), new object[]
+						    {
+							    (string) getTextMethod.Invoke(null, new object[] {"ColonyEvent CharacterRivalry Title"})
+						    });
+
+					    field = AccessTools.Field(colonyEventDefinitionType, "APieceOfThePuzzle");
+					    if (field != null)
+						    prop.Invoke(field.GetValue(null), new object[]
+						    {
+							    (string) getTextMethod.Invoke(null, new object[] {"Research Location Discovery Progress Title"})
+						    });
+				    }
+			    }
+			    catch
+			    {
+				    // ignored
+			    }
 			}
 	    }
     }

@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Xml;
 using HarmonyLib;
 
@@ -15,7 +16,7 @@ namespace DW2ChsPatch.TextProcess
 		{
 			_dir = textDir;
 
-			harmony.Patch(AccessTools.Method("DistantWorlds2.DWGame:Initialize"),
+			harmony.Patch(AccessTools.Method("DistantWorlds.Types.Galaxy:LoadStaticBaseData"),
 				null, new HarmonyMethod(typeof(HintText), nameof(Postfix)));
 		}
 
@@ -25,7 +26,10 @@ namespace DW2ChsPatch.TextProcess
 			var json = JsonText.CreateOrGetJsonText(FILENAME, filepath);
 			var field = AccessTools.Field("DistantWorlds.Types.Galaxy:HintText");
 			var hints = field.GetValue(null) as List<string>;
-			if (hints != null && json != null)
+			if (hints == null)
+				return;
+
+			if (json != null)
 			{
 				if (TranslationTextGenerator.Enable)
 				{
@@ -48,7 +52,7 @@ namespace DW2ChsPatch.TextProcess
 				}
 			}
 
-			if (MainClass.HardcodedTextDoc != null && hints != null)
+			if (MainClass.HardcodedTextDoc != null)
 			{
 				var extraHintNodes = MainClass.HardcodedTextDoc.SelectNodes("//ExtraHint");
 				if (extraHintNodes != null)
@@ -60,6 +64,10 @@ namespace DW2ChsPatch.TextProcess
 					}
 				}
 			}
+
+			var distinct = hints.Distinct().ToArray();
+			hints.Clear();
+			hints.AddRange(distinct);
 		}
 
 		/*public static void CreateTranslationJson(string pathOutput, string pathOrigin, string pathTranslate)

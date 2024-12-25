@@ -9,7 +9,8 @@ namespace DW2ChsPatch.Feature
 	{
 		public static void Patch(Harmony harmony)
 		{
-			harmony.Patch(AccessTools.Method("DistantWorlds.Types.PlanetaryFacilityDefinition:GenerateRuins"),
+			harmony.Patch(AccessTools.FirstMethod(AccessTools.TypeByName("DistantWorlds.Types.PlanetaryFacilityDefinition"), 
+					x => x.Name.Contains("GenerateRuins") && x.GetParameters().Length > 6),
 				null, null,
 				new HarmonyMethod(typeof(GenerateRuinsPatch), nameof(GenerateRuinsTranspiler)));
 		}

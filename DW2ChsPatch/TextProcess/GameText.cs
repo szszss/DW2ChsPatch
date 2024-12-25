@@ -47,7 +47,7 @@ namespace DW2ChsPatch.TextProcess
 
 			_textsField = AccessTools.Field(
 				AccessTools.TypeByName("DistantWorlds.Types.TextResolver"),
-				"_Text");//.GetValue(null) as ImmutableDictionary<string, string>;
+				"_Text");//.GetValue(null) as IDictionary<string, string>;
 		}
 
 		/*private static IEnumerable<CodeInstruction> GameTextTranspiler(IEnumerable<CodeInstruction> instructions)
@@ -81,7 +81,7 @@ namespace DW2ChsPatch.TextProcess
 		public static void GameTextPostfix()
 		{
 			//var file = Path.Combine(_dir, FILENAME);
-			var oldTexts = _textsField?.GetValue(null) as ImmutableDictionary<string, string>;
+			var oldTexts = _textsField?.GetValue(null) as IDictionary<string, string>;
 
 			if (oldTexts != null)
 			{

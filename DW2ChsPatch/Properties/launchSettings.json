@@ -2,7 +2,7 @@
   "profiles": {
     "DW2ChsPatch": {
       "commandName": "Project",
-      "commandLineArgs": "--low-level-inject DW2ChsPatch.dll!DW2ChsPatch.MainClass.Init"
+      "commandLineArgs": "--low-level-inject mods\\Dw2ChsPatch\\Dw2ChsPatch.dll!DW2ChsPatch.MainClass.Init"
     }
   }
 }

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Xml;
 using HarmonyLib;
 
 namespace DW2ChsPatch.Feature
@@ -11,6 +12,19 @@ namespace DW2ChsPatch.Feature
 
 		private static readonly Dictionary<string, string> _raceOriginalNames = new Dictionary<string, string>();
 		private static readonly Dictionary<string, string> _raceTranslatedNames = new Dictionary<string, string>();
+		private static readonly HashSet<string> _playableRaces = new HashSet<string>();
+
+		public static void InitRace()
+		{
+			var nodes = MainClass.HardcodedTextDoc?.SelectNodes("//PlayableRace");
+			if (nodes != null)
+			{
+				foreach (XmlNode node in nodes)
+				{
+					_playableRaces.Add(node.InnerText);
+				}
+			}
+		}
 
 		public static void Patch(Harmony harmony, bool skipCheck)
 		{
@@ -36,7 +50,8 @@ namespace DW2ChsPatch.Feature
 				null, null,
 				new HarmonyMethod(typeof(RacePatch), nameof(RaceNameTranslationToOriginTranspiler)));
 
-			harmony.Patch(AccessTools.Method("DistantWorlds.Types.Galaxy:GenerateEmpire"),
+			harmony.Patch(AccessTools.FirstMethod(AccessTools.TypeByName("DistantWorlds.Types.Galaxy"), 
+					x => x.Name.Contains("GenerateEmpire") && x.GetParameters().Length > 14),
 				null, null,
 				new HarmonyMethod(typeof(RacePatch), nameof(RaceNameTranslationToOriginTranspiler)));
 
@@ -100,6 +115,16 @@ namespace DW2ChsPatch.Feature
 		public static string GetRaceTranslatedName(string oldName)
 		{
 			return _raceTranslatedNames.TryGetValue(oldName, out var name) ? name : oldName;
+		}
+
+		public static bool IsPlayableRace(string oldName)
+		{
+			return _playableRaces.Contains(oldName);
+		}
+
+		public static bool IsImportantRace(string oldName)
+		{
+			return IsPlayableRace(oldName) || "Shakturi" == oldName;
 		}
 	}
 }

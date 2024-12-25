@@ -61,13 +61,7 @@ namespace DW2ChsPatch.TextProcess
 
 				if (instruction.opcode == OpCodes.Ldstr)
 				{
-					if ("Human".Equals(instruction.operand) ||
-						"Ackdarian".Equals(instruction.operand) ||
-						"Zenox".Equals(instruction.operand) ||
-						"Mortalen".Equals(instruction.operand) ||
-						"Haakonish".Equals(instruction.operand) ||
-						"Teekan".Equals(instruction.operand) ||
-						"Boskara".Equals(instruction.operand))
+					if (RacePatch.IsPlayableRace(instruction.operand as string))
 					{
 						yield return new CodeInstruction(OpCodes.Call,
 							AccessTools.Method(typeof(RacePatch), nameof(RacePatch.GetRaceTranslatedName)));
